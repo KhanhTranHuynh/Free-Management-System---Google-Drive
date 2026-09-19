@@ -1,0 +1,33 @@
+name: flutter_starter
+description: "Bộ source Flutter cơ bản để học và làm quen"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State management (đơn giản, dễ học nhất khi mới bắt đầu)
+  provider: ^6.1.5+1
+
+  # Gọi API
+  dio: ^5.4.3
+
+  # Lưu dữ liệu local đơn giản (token, settings...)
+  shared_preferences: ^2.5.5
+  flutter_dotenv: ^6.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # Nếu thêm ảnh, khai báo ở đây, ví dụ:
+  # assets:
+  #   - assets/images/
