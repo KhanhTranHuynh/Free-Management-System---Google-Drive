@@ -1,4 +1,3 @@
-import '../../configs/app_constants.dart';
 import '../api_notify.dart';
 import '../api_request_manager.dart';
 import '../models/api_exception.dart';
@@ -17,7 +16,7 @@ class DanhMucKhachHangApi {
   }) async {
     final kq = await _manager.send(
       ApiRequest(
-        apiUrl: '/public/danh-muc-khach-hang/danh-sach',
+        apiUrl: '/danh-muc-khach-hang/danh-sach',
         method: 'GET',
         key: 'danh-muc-khach-hang-danh-sach',
         params: {

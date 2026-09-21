@@ -1,4 +1,3 @@
-import '../../configs/app_constants.dart';
 import '../api_notify.dart';
 import '../api_request_manager.dart';
 import '../models/api_exception.dart';
