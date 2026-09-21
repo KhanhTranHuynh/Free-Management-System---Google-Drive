@@ -18,10 +18,13 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
+<<<<<<< HEAD
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+=======
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+>>>>>>> f8bf35a232a72fb60e82b45227748ccde940105f
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -46,3 +49,10 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+<<<<<<< HEAD
+=======
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+>>>>>>> f8bf35a232a72fb60e82b45227748ccde940105f
