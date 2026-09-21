@@ -37,6 +37,7 @@ class AuthApi {
           'so_dien_thoai': soDienThoai,
           'mat_khau': matKhau,
         },
+        showOverlay: true,
       ),
     );
 
