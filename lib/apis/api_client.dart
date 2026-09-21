@@ -44,6 +44,9 @@ class ApiClient {
 
   late final Dio _dio;
 
+  /// Cho ApiRequestManager dùng chung Dio (giữ nguyên interceptor token).
+  Dio get dio => _dio;
+
   Future<void> _onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,

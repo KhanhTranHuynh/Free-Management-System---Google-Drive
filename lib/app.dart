@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'apis/api_client.dart';
+import 'apis/api_request_manager.dart';
 import 'apis/auth_api.dart';
+import 'components/api_overlay_host.dart';
 import 'configs/app_theme.dart';
 import 'routes/app_routes.dart';
 import 'stores/auth_store.dart';
@@ -19,7 +21,16 @@ class MyApp extends StatelessWidget {
       providers: [
         Provider<AuthApi>(create: (_) => AuthApi(ApiClient.instance)),
         ChangeNotifierProvider<AuthStore>(
-          create: (context) => AuthStore(context.read<AuthApi>()),
+          create: (context) {
+            final store = AuthStore(context.read<AuthApi>());
+            // Gắn hàm kiểm tra quyền để ApiRequestManager tự chặn request
+            // thiếu quyền ngay tại FE (chỉ tối ưu UX, BE vẫn là nguồn quyết
+            // định thật).
+            ApiRequestManager.instance.configure(
+              permissionChecker: store.coQuyen,
+            );
+            return store;
+          },
         ),
         ChangeNotifierProvider<ThemeStore>(create: (_) => ThemeStore()),
       ],
@@ -33,6 +44,9 @@ class MyApp extends StatelessWidget {
             themeMode: themeStore.mode,
             initialRoute: AppRoutes.login,
             onGenerateRoute: AppRoutes.onGenerateRoute,
+            // Overlay loading toàn app do ApiRequestManager điều khiển.
+            builder: (context, child) =>
+                ApiOverlayHost(child: child ?? const SizedBox.shrink()),
           );
         },
       ),
