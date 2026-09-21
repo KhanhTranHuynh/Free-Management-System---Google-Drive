@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../apis/auth_api.dart';
+import '../apis/services/auth_api.dart';
 import '../apis/models/api_exception.dart';
 import '../apis/models/user.dart';
 import '../utils/token_storage.dart';
@@ -41,11 +41,6 @@ class AuthStore extends ChangeNotifier {
       final ketQua = await _api.dangNhap(
         soDienThoai: soDienThoai,
         matKhau: matKhau,
-      );
-
-      await TokenStorage.saveTokens(
-        accessToken: ketQua.accessToken,
-        refreshToken: ketQua.refreshToken,
       );
 
       _nguoiDung = ketQua.nguoiDung;

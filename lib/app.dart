@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'apis/api_client.dart';
 import 'apis/api_request_manager.dart';
-import 'apis/auth_api.dart';
+import 'apis/services/auth_api.dart';
 import 'components/api_overlay_host.dart';
 import 'configs/app_theme.dart';
 import 'routes/app_routes.dart';
@@ -19,7 +18,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthApi>(create: (_) => AuthApi(ApiClient.instance)),
+        Provider<AuthApi>(create: (_) => AuthApi(ApiRequestManager.instance)),
         ChangeNotifierProvider<AuthStore>(
           create: (context) {
             final store = AuthStore(context.read<AuthApi>());
