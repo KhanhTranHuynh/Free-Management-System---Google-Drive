@@ -3,10 +3,6 @@
 class AppConstants {
   AppConstants._();
 
-  // ---- API paths (khớp với http.js/ApiRequestManager bản gốc) ----
-  static const String pathDangNhap = '/public/xac-thuc/dang-nhap';
-  static const String pathLamMoiToken = '/public/xac-thuc/lam-moi-token';
-
   // ---- Key lưu trong flutter_secure_storage ----
   static const String keyAccessToken = 'bms_access_token';
   static const String keyRefreshToken = 'bms_refresh_token';

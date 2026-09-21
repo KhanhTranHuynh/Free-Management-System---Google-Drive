@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../pages/danh_muc_khach_hang_page.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/not_found_page.dart';
@@ -11,9 +12,10 @@ class AppRoutes {
 
   static const String login = '/';
   static const String home = '/home';
+  static const String danhMucKhachHang = '/danh-muc-khach-hang';
 
   /// Các route cần đăng nhập mới được vào.
-  static const Set<String> protected = {home};
+  static const Set<String> protected = {home, danhMucKhachHang};
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final name = settings.name;
@@ -25,6 +27,9 @@ class AppRoutes {
         break;
       case home:
         page = const HomePage();
+        break;
+      case danhMucKhachHang:
+        page = const DanhMucKhachHangPage();
         break;
       default:
         page = const NotFoundPage();

@@ -38,7 +38,7 @@ class AuthApi {
   }) async {
     final kq = await _manager.send(
       ApiRequest(
-        apiUrl: AppConstants.pathDangNhap,
+        apiUrl: '/public/xac-thuc/dang-nhap',
         key: 'dang-nhap',
         data: {
           'so_dien_thoai': soDienThoai,
