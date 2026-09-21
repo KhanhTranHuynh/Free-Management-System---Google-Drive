@@ -9,6 +9,10 @@ import '../../utils/validators.dart';
 
 /// Khối giao diện form đăng nhập. View được phép đọc stores/ và ghép từ
 /// components/ (theo đúng chiều phụ thuộc pages -> views -> components).
+///
+/// Không tự hiện lỗi bằng SnackBar nữa — AuthApi.dangNhap() đã tự hiện
+/// toast thành công/thất bại dựa trên code/message của BE (xem
+/// apis/api_notify.dart), nên view chỉ cần lo validate + điều hướng.
 class LoginFormView extends StatefulWidget {
   const LoginFormView({super.key});
 
@@ -52,16 +56,14 @@ class _LoginFormViewState extends State<LoginFormView> {
 
     if (!mounted) return;
 
+    // Toast thành công/thất bại đã tự hiện ở tầng apis/ (notifyApiByCode).
+    // Ở đây chỉ còn lo điều hướng khi thành công.
     if (thanhCong) {
       Navigator.of(context).pushNamedAndRemoveUntil(
         AppRoutes.home,
         (route) => false,
       );
-      return;
     }
-
-    final loi = authStore.error ?? 'Đăng nhập thất bại.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loi)));
   }
 
   @override

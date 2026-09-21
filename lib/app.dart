@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'apis/api_request_manager.dart';
 import 'apis/services/auth_api.dart';
 import 'components/api_overlay_host.dart';
+import 'configs/app_navigator.dart';
 import 'configs/app_theme.dart';
 import 'routes/app_routes.dart';
 import 'stores/auth_store.dart';
@@ -43,6 +44,9 @@ class MyApp extends StatelessWidget {
             themeMode: themeStore.mode,
             initialRoute: AppRoutes.login,
             onGenerateRoute: AppRoutes.onGenerateRoute,
+            // 👇 MỚI — cần cho AppToast (utils/app_toast.dart): cho phép
+            // hiện toast từ những nơi không có BuildContext (vd apis/).
+            navigatorKey: appNavigatorKey,
             // Overlay loading toàn app do ApiRequestManager điều khiển.
             builder: (context, child) =>
                 ApiOverlayHost(child: child ?? const SizedBox.shrink()),
