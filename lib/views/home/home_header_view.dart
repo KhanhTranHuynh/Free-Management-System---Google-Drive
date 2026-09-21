@@ -22,7 +22,7 @@ class HomeHeaderView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Xin chào, ${user?.name ?? ''}',
+                  'Xin chào aloalo, ${user?.name ?? ''}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 Text(
