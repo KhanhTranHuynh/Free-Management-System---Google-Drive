@@ -5,19 +5,21 @@ import '../pages/login_page.dart';
 import '../pages/not_found_page.dart';
 import 'auth_guard.dart';
 
+/// Khai báo tất cả route tập trung. Muốn thêm màn hình mới, sửa ở đây.
 class AppRoutes {
   AppRoutes._();
 
   static const String login = '/';
   static const String home = '/home';
 
-  /// Các route cần đăng nhập mới được vào
-  static const Set<String> protectedRoutes = {home};
+  /// Các route cần đăng nhập mới được vào.
+  static const Set<String> protected = {home};
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    Widget page;
+    final name = settings.name;
 
-    switch (settings.name) {
+    Widget page;
+    switch (name) {
       case login:
         page = const LoginPage();
         break;
@@ -28,7 +30,7 @@ class AppRoutes {
         page = const NotFoundPage();
     }
 
-    if (protectedRoutes.contains(settings.name)) {
+    if (protected.contains(name)) {
       page = AuthGuard(child: page);
     }
 

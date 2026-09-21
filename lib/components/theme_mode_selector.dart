@@ -1,42 +1,41 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../stores/theme_store.dart';
+/// Bộ chọn giao diện sáng/tối/hệ thống. Component thuần giao diện — KHÔNG
+/// đọc ThemeStore trực tiếp (component không được import stores/), giá
+/// trị hiện tại và callback đổi giá trị truyền vào từ view bên ngoài
+/// (xem views/settings/theme_mode_view.dart).
+class ThemeModeSelector extends StatelessWidget {
+  const ThemeModeSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
-class ThemeModeView extends StatelessWidget {
-  const ThemeModeView({super.key});
+  final ThemeMode value;
+  final ValueChanged<ThemeMode> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final mode = context.watch<ThemeStore>().mode;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SegmentedButton<ThemeMode>(
-        showSelectedIcon: false,
-        expandedInsets: EdgeInsets.zero, // giãn đều hết chiều ngang
-        segments: const [
-          ButtonSegment(
-            value: ThemeMode.light,
-            icon: Icon(Icons.light_mode_outlined),
-            label: Text('Sáng'),
-          ),
-          ButtonSegment(
-            value: ThemeMode.dark,
-            icon: Icon(Icons.dark_mode_outlined),
-            label: Text('Tối'),
-          ),
-          ButtonSegment(
-            value: ThemeMode.system,
-            icon: Icon(Icons.phone_android_outlined),
-            label: Text('Hệ thống'),
-          ),
-        ],
-        selected: {mode},
-        onSelectionChanged: (selection) {
-          context.read<ThemeStore>().setMode(selection.first);
-        },
-      ),
+    return SegmentedButton<ThemeMode>(
+      segments: const [
+        ButtonSegment(
+          value: ThemeMode.light,
+          label: Text('Sáng'),
+          icon: Icon(Icons.light_mode_outlined),
+        ),
+        ButtonSegment(
+          value: ThemeMode.dark,
+          label: Text('Tối'),
+          icon: Icon(Icons.dark_mode_outlined),
+        ),
+        ButtonSegment(
+          value: ThemeMode.system,
+          label: Text('Hệ thống'),
+          icon: Icon(Icons.settings_suggest_outlined),
+        ),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }

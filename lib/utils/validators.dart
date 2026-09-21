@@ -1,19 +1,14 @@
-/// Các hàm kiểm tra dữ liệu. Trả về null nếu hợp lệ, trả về chuỗi lỗi nếu sai
-/// (đúng định dạng của TextFormField.validator).
+/// Hàm kiểm tra input thuần, không phụ thuộc store/API/giao diện.
 class Validators {
   Validators._();
 
-  static String? email(String? value) {
-    final v = value?.trim() ?? '';
-    if (v.isEmpty) return 'Vui lòng nhập email';
-    final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v);
-    return ok ? null : 'Email không hợp lệ';
+  /// Số điện thoại VN: bắt đầu bằng 0, theo sau 9 chữ số (tổng 10 số).
+  static bool isPhoneNumber(String value) {
+    final trimmed = value.trim();
+    return RegExp(r'^0\d{9}$').hasMatch(trimmed);
   }
 
-  static String? password(String? value) {
-    final v = value ?? '';
-    if (v.isEmpty) return 'Vui lòng nhập mật khẩu';
-    if (v.length < 6) return 'Mật khẩu tối thiểu 6 ký tự';
-    return null;
-  }
+  static bool isNotEmpty(String value) => value.trim().isNotEmpty;
+
+  static bool minLength(String value, int min) => value.trim().length >= min;
 }

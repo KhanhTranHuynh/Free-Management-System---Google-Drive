@@ -4,14 +4,17 @@ import 'package:provider/provider.dart';
 import '../pages/login_page.dart';
 import '../stores/auth_store.dart';
 
-/// Bọc quanh trang cần đăng nhập. Chưa đăng nhập thì hiện trang login.
+/// Bọc quanh page cần đăng nhập. Nếu AuthStore chưa có nguoiDung (chưa
+/// đăng nhập), hiển thị LoginPage thay vì page được bảo vệ.
 class AuthGuard extends StatelessWidget {
-  final Widget child;
   const AuthGuard({super.key, required this.child});
+
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final isLoggedIn = context.watch<AuthStore>().isLoggedIn;
-    return isLoggedIn ? child : const LoginPage();
+    if (!isLoggedIn) return const LoginPage();
+    return child;
   }
 }

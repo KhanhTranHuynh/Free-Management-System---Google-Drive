@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../components/app_button.dart';
 import '../../components/app_text_field.dart';
-import '../../configs/app_spacing.dart';
 import '../../routes/app_routes.dart';
 import '../../stores/auth_store.dart';
 import '../../utils/validators.dart';
 
+/// Khối giao diện form đăng nhập. View được phép đọc stores/ và ghép từ
+/// components/ (theo đúng chiều phụ thuộc pages -> views -> components).
 class LoginFormView extends StatefulWidget {
   const LoginFormView({super.key});
 
@@ -16,67 +17,84 @@ class LoginFormView extends StatefulWidget {
 }
 
 class _LoginFormViewState extends State<LoginFormView> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController(text: 'admin@test.com');
-  final _passCtrl = TextEditingController(text: '123456');
+  final _soDienThoaiController = TextEditingController();
+  final _matKhauController = TextEditingController();
+  String? _loiSoDienThoai;
+  String? _loiMatKhau;
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
+    _soDienThoaiController.dispose();
+    _matKhauController.dispose();
     super.dispose();
   }
 
+  bool _validate() {
+    setState(() {
+      _loiSoDienThoai = Validators.isPhoneNumber(_soDienThoaiController.text)
+          ? null
+          : 'Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0)';
+      _loiMatKhau = Validators.minLength(_matKhauController.text, 6)
+          ? null
+          : 'Mật khẩu tối thiểu 6 ký tự';
+    });
+    return _loiSoDienThoai == null && _loiMatKhau == null;
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_validate()) return;
 
-    final ok = await context
-        .read<AuthStore>()
-        .login(_emailCtrl.text.trim(), _passCtrl.text);
+    final authStore = context.read<AuthStore>();
+    final thanhCong = await authStore.dangNhap(
+      soDienThoai: _soDienThoaiController.text.trim(),
+      matKhau: _matKhauController.text,
+    );
 
-    if (ok && mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    if (!mounted) return;
+
+    if (thanhCong) {
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.home,
+        (route) => false,
+      );
+      return;
     }
+
+    final loi = authStore.error ?? 'Đăng nhập thất bại.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loi)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthStore>();
-    final scheme = Theme.of(context).colorScheme;
+    final isLoading = context.watch<AuthStore>().isLoading;
 
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppTextField(
-            label: 'Email',
-            controller: _emailCtrl,
-            keyboardType: TextInputType.emailAddress,
-            validator: Validators.email,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            label: 'Mật khẩu',
-            controller: _passCtrl,
-            obscureText: true,
-            validator: Validators.password,
-          ),
-          if (auth.error != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              auth.error!,
-              style: TextStyle(color: scheme.error),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: 'Đăng nhập',
-            isLoading: auth.isLoading,
-            onPressed: _submit,
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppTextField(
+          controller: _soDienThoaiController,
+          label: 'Số điện thoại',
+          hintText: '09xxxxxxxx',
+          prefixIcon: Icons.phone_outlined,
+          keyboardType: TextInputType.phone,
+          errorText: _loiSoDienThoai,
+        ),
+        const SizedBox(height: 16),
+        AppTextField(
+          controller: _matKhauController,
+          label: 'Mật khẩu',
+          prefixIcon: Icons.lock_outline,
+          obscureText: true,
+          errorText: _loiMatKhau,
+        ),
+        const SizedBox(height: 24),
+        AppButton(
+          label: 'Đăng nhập',
+          isLoading: isLoading,
+          onPressed: _submit,
+        ),
+      ],
     );
   }
 }

@@ -1,25 +1,27 @@
-name: flutter_starter
-description: "Bộ source Flutter cơ bản để học và làm quen"
-publish_to: 'none'
+name: bms_client
+description: BMS Client - Flutter app (màn hình đăng nhập + lưu phiên đăng nhập dùng chung).
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
+  cupertino_icons: ^1.0.8
 
-  # State management (đơn giản, dễ học nhất khi mới bắt đầu)
-  provider: ^6.1.5+1
+  # Quản lý state dùng chung (stores/)
+  provider: ^6.1.2
 
-  # Gọi API
-  dio: ^5.4.3
+  # Gọi API (apis/)
+  dio: ^5.5.0+1
 
-  # Lưu dữ liệu local đơn giản (token, settings...)
-  shared_preferences: ^2.5.5
-  flutter_dotenv: ^6.0.1
+  # Biến môi trường (.env -> configs/env.dart)
+  flutter_dotenv: ^5.1.0
+
+  # Lưu token an toàn (utils/token_storage.dart)
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:
@@ -28,6 +30,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # Nếu thêm ảnh, khai báo ở đây, ví dụ:
-  # assets:
-  #   - assets/images/
+  assets:
+    - .env
