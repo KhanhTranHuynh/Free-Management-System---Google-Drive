@@ -3,7 +3,7 @@ import '../api_request_manager.dart';
 import '../models/api_exception.dart';
 
 /// Gọi API danh mục khách hàng qua [ApiRequestManager].
-/// Trả về nguyên body BE: { du_lieu: [...], phan_trang: {...} }.
+/// Trả về field "data" bên trong envelope: { du_lieu: [...], phan_trang: {...} }.
 class DanhMucKhachHangApi {
   DanhMucKhachHangApi(this._manager);
 
@@ -28,7 +28,6 @@ class DanhMucKhachHangApi {
     );
 
     if (!kq.isSuccess) {
-      // Chỉ toast khi lỗi, thành công thì im lặng. Bỏ qua khi request bị huỷ.
       if (!kq.isCanceled) {
         notifyApiByCode(
           kq,
@@ -42,6 +41,9 @@ class DanhMucKhachHangApi {
           const ApiException(message: 'Không tải được danh mục khách hàng.');
     }
 
-    return kq.envelope ?? const <String, dynamic>{};
+    // payload = envelope['data'] -> chứa { du_lieu, phan_trang } đúng như BE trả.
+    final data = kq.payload;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return const <String, dynamic>{};
   }
 }
