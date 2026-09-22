@@ -154,7 +154,7 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
             controller: _searchController,
             onChanged: _onSearchChanged,
             decoration: const InputDecoration(
-              hintText: 'Tìm kiếm danh mục...',
+              hintText: 'Tìm kiếm danh mục khách hàng...',
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
