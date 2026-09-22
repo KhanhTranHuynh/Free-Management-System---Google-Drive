@@ -13,7 +13,7 @@ const Map<String, List<String>> menuVaiTro = {
   'khach_hang': ['chu_studio', 'tho_chup', 'editor'],
   'trang_ca_nhan': ['chu_studio', 'tho_chup', 'editor', 'khach_hang'],
   'album': ['chu_studio', 'tho_chup', 'editor', 'khach_hang'],
-  'log': ['chu_studio', 'tho_chup', 'editor', 'khach_hang'],
+  'log': ['chu_studio'],
   'permission': ['chu_studio'],
 };
 

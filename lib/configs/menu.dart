@@ -37,10 +37,4 @@ const List<MenuItem> topMenu = [
     icon: Icons.description_outlined,
     link: '/log',
   ),
-  MenuItem(
-    key: 'permission',
-    title: 'Phân quyền',
-    icon: Icons.verified_user_outlined,
-    link: '/permission',
-  ),
 ];

@@ -1,7 +1,7 @@
 import '../apis/models/user.dart';
 import '../configs/menu_item.dart';
 import '../configs/menu_role.dart';
-import '../configs/top_menu.dart';
+import '../configs/menu.dart';
 import '../utils/lay_ma_vai_tro.dart';
 
 /// Lọc [topMenu] theo vai trò của [NhanVien] hiện tại — tương đương hook
