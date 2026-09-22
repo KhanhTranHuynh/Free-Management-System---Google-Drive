@@ -1,26 +1,24 @@
+import '../apis/models/user.dart';
 import '../configs/menu_item.dart';
 import '../configs/menu_role.dart';
 import '../configs/top_menu.dart';
 import '../utils/lay_ma_vai_tro.dart';
 
-/// Lọc [topMenu] theo vai trò của user hiện tại — tương đương hook
+/// Lọc [topMenu] theo vai trò của [NhanVien] hiện tại — tương đương hook
 /// `useMenu()` bên React.
 ///
-/// Gọi lại [layMenuTheoVaiTro] mỗi khi user/role thay đổi. Nếu app dùng
-/// Provider/Riverpod/Bloc, nên bọc hàm này trong 1 getter/selector để tự
-/// rebuild khi auth state đổi, ví dụ:
+/// Gọi lại [layMenuTheoVaiTro] mỗi khi `AuthStore.nguoiDung` thay đổi.
+/// Cách dùng thực tế với AuthStore (đã là ChangeNotifier):
 ///
 /// ```dart
-/// final menuProvider = Provider<List<MenuItem>>((ref) {
-///   final user = ref.watch(authProvider).user;
-///   return MenuService.layMenuTheoVaiTro(user);
-/// });
+/// final nguoiDung = context.watch<AuthStore>().nguoiDung;
+/// final menus = MenuService.layMenuTheoVaiTro(nguoiDung);
 /// ```
 class MenuService {
   const MenuService._();
 
-  static List<MenuItem> layMenuTheoVaiTro(dynamic user) {
-    final vaiTro = layMaVaiTro(user);
+  static List<MenuItem> layMenuTheoVaiTro(NhanVien? nguoiDung) {
+    final vaiTro = layMaVaiTro(nguoiDung);
 
     return topMenu
         .where((menu) => coQuyenTruyCapMenu(menu.key, vaiTro))

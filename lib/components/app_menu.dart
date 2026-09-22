@@ -55,6 +55,18 @@ bool menuDangActive(MenuItem item, String pathname) {
 /// Danh sách menu dạng Drawer/NavigationRail, tự tô sáng item active.
 /// Nhận vào danh sách menu ĐÃ LỌC theo quyền (từ `MenuService`), widget
 /// này KHÔNG tự kiểm tra quyền — tách biệt UI khỏi logic phân quyền.
+///
+/// Cách dùng thực tế với AuthStore:
+/// ```dart
+/// final nguoiDung = context.watch<AuthStore>().nguoiDung;
+/// final menus = MenuService.layMenuTheoVaiTro(nguoiDung);
+///
+/// AppMenuList(
+///   menus: menus,
+///   pathname: ModalRoute.of(context)?.settings.name ?? '/',
+///   onChon: (item) => Navigator.pushNamed(context, item.link!),
+/// );
+/// ```
 class AppMenuList extends StatelessWidget {
   const AppMenuList({
     super.key,

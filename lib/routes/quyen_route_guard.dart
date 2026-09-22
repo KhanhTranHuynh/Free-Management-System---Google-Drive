@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../apis/models/user.dart';
 import '../configs/menu_role.dart';
+import '../stores/auth_store.dart';
 import '../utils/lay_ma_vai_tro.dart';
 
 /// Bọc quanh 1 page cần bảo vệ theo vai trò — tương đương
@@ -11,19 +14,18 @@ import '../utils/lay_ma_vai_tro.dart';
 /// [MenuService]. KHÔNG thay thế kiểm tra quyền ở BE — BE vẫn phải tự
 /// kiểm tra độc lập.
 ///
-/// Dùng với Navigator 1.0 (route builder truyền thống):
+/// Tự đọc `AuthStore.nguoiDung` qua Provider nên nơi gọi không cần truyền
+/// user thủ công:
 /// ```dart
-/// '/permission': (context) => QuyenRouteGuard(
+/// '/permission': (context) => const QuyenRouteGuard(
 ///       menuKey: 'permission',
-///       user: context.watch<AuthState>().user,
-///       child: const PermissionPage(),
+///       child: PermissionPage(),
 ///     ),
 /// ```
 class QuyenRouteGuard extends StatelessWidget {
   const QuyenRouteGuard({
     super.key,
     required this.menuKey,
-    required this.user,
     required this.child,
     this.duongDanKhongCoQuyen = '/404',
     this.trangKhongCoQuyen,
@@ -31,9 +33,6 @@ class QuyenRouteGuard extends StatelessWidget {
 
   /// Key tra trong [menuVaiTro], phải trùng với MenuItem.key của route này.
   final String menuKey;
-
-  /// Đối tượng user hiện tại (lấy từ auth state — Provider/Bloc/Riverpod...).
-  final dynamic user;
 
   final Widget child;
 
@@ -47,7 +46,10 @@ class QuyenRouteGuard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vaiTro = layMaVaiTro(user);
+    // watch: nếu user đăng nhập/đăng xuất trong lúc đang đứng ở trang này
+    // (vd token hết hạn -> AuthStore.dangXuat()) thì tự re-check ngay.
+    final nguoiDung = context.watch<AuthStore>().nguoiDung;
+    final vaiTro = layMaVaiTro(nguoiDung);
     final duocPhep = coQuyenTruyCapMenu(menuKey, vaiTro);
 
     if (duocPhep) return child;
@@ -74,17 +76,17 @@ class QuyenRouteGuard extends StatelessWidget {
 ///   path: '/permission',
 ///   redirect: (context, state) => quyenRedirect(
 ///     menuKey: 'permission',
-///     user: context.read<AuthState>().user,
+///     nguoiDung: context.read<AuthStore>().nguoiDung,
 ///   ),
 ///   builder: (context, state) => const PermissionPage(),
 /// ),
 /// ```
 String? quyenRedirect({
   required String menuKey,
-  required dynamic user,
+  required NhanVien? nguoiDung,
   String duongDanKhongCoQuyen = '/404',
 }) {
-  final vaiTro = layMaVaiTro(user);
+  final vaiTro = layMaVaiTro(nguoiDung);
   final duocPhep = coQuyenTruyCapMenu(menuKey, vaiTro);
   return duocPhep ? null : duongDanKhongCoQuyen;
 }
