@@ -5,6 +5,10 @@ import '../models/api_exception.dart';
 /// Gọi API nhân viên qua [ApiRequestManager].
 /// Trả về field "data" bên trong envelope: { du_lieu: [...], phan_trang: {...} }.
 /// Không map sang model riêng — view tự đọc field thô từ Map.
+///
+/// Path khớp route BE module tai-khoan:
+///   GET  /tai-khoan/danh-sach
+///   POST /tai-khoan/tao-moi
 class NhanVienApi {
   NhanVienApi(this._manager);
 
@@ -20,8 +24,7 @@ class NhanVienApi {
   }) async {
     final kq = await _manager.send(
       ApiRequest(
-        apiUrl:
-            '/tai-khoan/danh-sach', // TODO: xác nhận đúng path module nhân viên
+        apiUrl: '/tai-khoan/danh-sach',
         method: 'GET',
         key: 'nhan-vien-danh-sach',
         params: {
@@ -47,6 +50,42 @@ class NhanVienApi {
       }
       throw kq.error ??
           const ApiException(message: 'Không tải được danh sách nhân viên.');
+    }
+
+    final data = kq.payload;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return const <String, dynamic>{};
+  }
+
+  /// Tạo nhân viên mới.
+  /// payload: so_dien_thoai, mat_khau, ho_ten, email, vai_tro (List<String>),
+  /// trang_thai (bool), mau_sac (String?).
+  ///
+  /// Lỗi: toast lỗi được hiện ở đây (notifyApiByCode) rồi ném [ApiException].
+  /// Thành công: KHÔNG toast ở tầng API (silentOnSuccess) — view gọi tự
+  /// hiện thông báo "Thêm nhân viên thành công".
+  Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/tai-khoan/tao-moi',
+        method: 'POST',
+        key: 'nhan-vien-tao-moi',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không tạo được nhân viên mới',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(message: 'Không tạo được nhân viên mới.');
     }
 
     final data = kq.payload;

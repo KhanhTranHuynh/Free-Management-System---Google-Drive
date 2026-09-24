@@ -8,6 +8,7 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/nhan_vien_api.dart';
 import '../../apis/services/vai_tro_api.dart';
 import '../../stores/auth_store.dart';
+import 'add_nhan_vien.dart';
 
 /// Danh sách nhân viên. Toàn bộ state (search/filter/sort/phân trang) +
 /// gọi API nằm cục bộ trong View này — AuthStore chỉ được đọc để lấy quyền
@@ -22,6 +23,13 @@ class NhanVienListView extends StatefulWidget {
 
 class _NhanVienListViewState extends State<NhanVienListView> {
   static const int _soLuong = 10;
+
+  /// Các cột cho phép sắp xếp (khớp bản React: chỉ tên / SĐT / email).
+  static const List<(String, String)> _cotSapXep = [
+    ('ho_ten', 'Tên nhân viên'),
+    ('so_dien_thoai', 'Số điện thoại'),
+    ('email', 'Email'),
+  ];
 
   final _api = NhanVienApi(ApiRequestManager.instance);
   final _vaiTroApi = VaiTroApi(ApiRequestManager.instance);
@@ -43,11 +51,14 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   String? _sortColumn; // vd "ho_ten"
   String _sortType = 'ASC'; // "ASC" | "DESC"
 
-  // ----- options filter "Vai trò" (nạp 1 lần)
+  // ----- options filter "Vai trò" (nạp 1 lần, dùng lại cho modal thêm)
   // Lọc bỏ ngay từ nguồn các bản ghi thiếu ma_vai_tro để không bao giờ
   // sinh ra 1 DropdownMenuItem trùng value:null với mục "Tất cả vai trò".
   List<Map<String, dynamic>> _vaiTroOptions = [];
   bool _vaiTroLoading = false;
+  Future<void>? _vaiTroFuture; // chống gọi trùng khi đang tải
+
+  bool _dangMoModal = false; // chặn bấm "Thêm" nhiều lần
 
   int get _tongSo => (_phanTrang['tong_so'] as num?)?.toInt() ?? 0;
   int get _tongTrang => _tongSo <= 0 ? 1 : (_tongSo / _soLuong).ceil();
@@ -58,8 +69,8 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   @override
   void initState() {
     super.initState();
-    _taiVaiTro();
-    _taiLai();
+    unawaited(_taiVaiTro());
+    unawaited(_taiLai());
   }
 
   @override
@@ -83,8 +94,20 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     return raw is Map ? Map<String, dynamic>.from(raw) : const {};
   }
 
-  Future<void> _taiVaiTro() async {
-    setState(() => _vaiTroLoading = true);
+  void _thongBao(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Nạp danh sách vai trò. Nếu đang tải dở thì dùng lại Future cũ.
+  Future<void> _taiVaiTro() {
+    return _vaiTroFuture ??=
+        _fetchVaiTro().whenComplete(() => _vaiTroFuture = null);
+  }
+
+  Future<void> _fetchVaiTro() async {
+    if (mounted) setState(() => _vaiTroLoading = true);
     try {
       final body = await _vaiTroApi.layDanhSach(
         trang: 1,
@@ -150,7 +173,36 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   }
 
   /// Gọi lại sau khi thêm/sửa/xoá nhân viên thành công (giữ nguyên trang).
-  void reload() => _taiLai();
+  void reload() => unawaited(_taiLai());
+
+  /// Mở modal thêm nhân viên. Đảm bảo danh sách vai trò đã tải xong trước
+  /// khi mở (modal nhận bản chụp options, không tự cập nhật sau đó).
+  Future<void> _moModalThem() async {
+    if (_dangMoModal) return;
+    _dangMoModal = true;
+    try {
+      if (_vaiTroOptions.isEmpty) await _taiVaiTro();
+      if (!mounted) return;
+
+      if (_vaiTroOptions.isEmpty) {
+        _thongBao('Không tải được danh sách vai trò. Vui lòng thử lại.');
+        return;
+      }
+
+      final ok = await showAddNhanVienModal(
+        context,
+        vaiTroOptions: _vaiTroOptions,
+      );
+      if (!mounted) return;
+
+      if (ok == true) {
+        _thongBao('Thêm nhân viên thành công');
+        reload();
+      }
+    } finally {
+      _dangMoModal = false;
+    }
+  }
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
@@ -160,7 +212,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
         _timKiem = value.trim();
         _trang = 1;
       });
-      _taiLai();
+      unawaited(_taiLai());
     });
   }
 
@@ -169,7 +221,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       _filterVaiTro = value;
       _trang = 1;
     });
-    _taiLai();
+    unawaited(_taiLai());
   }
 
   void _onFilterTrangThaiChanged(bool? value) {
@@ -177,7 +229,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       _filterTrangThai = value;
       _trang = 1;
     });
-    _taiLai();
+    unawaited(_taiLai());
   }
 
   void _onSortColumnTap(String column) {
@@ -190,22 +242,26 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       }
       _trang = 1;
     });
-    _taiLai();
+    unawaited(_taiLai());
   }
 
   void _goToPage(int trang) {
     if (trang < 1 || trang > _tongTrang || trang == _trang) return;
     setState(() => _trang = trang);
-    _taiLai();
+    unawaited(_taiLai());
   }
 
-  /// Rule nghiệp vụ gốc (giữ NGUYÊN như bản JSX):
-  /// `"chu_studio".includes(rowData.vai_tro)` — kiểm tra chuỗi cố định
-  /// "chu_studio" có CHỨA vai_tro của dòng, không phải ngược lại. Khả năng
-  /// là bug gốc (đúng ra nên so sánh `== "chu_studio"`), port y nguyên để
-  /// không đổi hành vi hiện tại.
-  bool _laChuStudio(Map<String, dynamic> item) =>
-      'chu_studio'.contains(item['vai_tro']?.toString() ?? '');
+  /// Không cho sửa chủ studio. `vai_tro` có thể là List (nhiều vai trò) hoặc
+  /// String; chỉ coi là chủ studio khi mã vai trò == "chu_studio".
+  /// (Bản JSX gốc dùng `"chu_studio".includes(vai_tro)` — với vai_tro rỗng/null
+  /// bản port cũ trả về true nên ẩn nút Sửa nhầm; đã sửa cho đúng ý nghiệp vụ.)
+  bool _laChuStudio(Map<String, dynamic> item) {
+    final raw = item['vai_tro'];
+    final Iterable<String> codes = raw is List
+        ? raw.map((e) => e.toString())
+        : (raw == null ? const <String>[] : [raw.toString()]);
+    return codes.contains('chu_studio');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,21 +287,20 @@ class _NhanVienListViewState extends State<NhanVienListView> {
                       controller: _searchController,
                       onChanged: _onSearchChanged,
                       decoration: const InputDecoration(
-                        hintText: 'Tìm kiếm theo tên, số điện thoại...',
+                        hintText: 'Tìm theo tên, số điện thoại...',
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  _buildSortMenu(),
                   if (coQuyenThem) ...[
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: mở AddNhanVienModal thật; gọi reload() sau
-                        // khi tạo thành công.
-                      },
+                    const SizedBox(width: 4),
+                    FilledButton.icon(
+                      onPressed: _moModalThem,
                       icon: const Icon(Icons.add),
-                      label: const Text('Thêm nhân viên'),
+                      label: const Text('Thêm'),
                     ),
                   ],
                 ],
@@ -260,6 +315,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
                   Expanded(
                     child: DropdownButtonFormField<bool?>(
                       initialValue: _filterTrangThai,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Trạng thái',
                         border: OutlineInputBorder(),
@@ -284,6 +340,33 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     );
   }
 
+  /// Menu chọn cột sắp xếp; chọn lại cột đang sắp xếp thì đảo ASC/DESC.
+  Widget _buildSortMenu() {
+    return PopupMenuButton<String>(
+      tooltip: 'Sắp xếp',
+      icon: const Icon(Icons.sort),
+      onSelected: _onSortColumnTap,
+      itemBuilder: (_) => [
+        for (final col in _cotSapXep)
+          PopupMenuItem<String>(
+            value: col.$1,
+            child: Row(
+              children: [
+                Expanded(child: Text(col.$2)),
+                if (_sortColumn == col.$1)
+                  Icon(
+                    _sortType == 'ASC'
+                        ? Icons.arrow_upward
+                        : Icons.arrow_downward,
+                    size: 16,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   /// Dropdown "Vai trò" tách riêng để xử lý trạng thái loading mà KHÔNG
   /// sinh 2 DropdownMenuItem cùng value:null (mục "Tất cả vai trò" +
   /// mục "Đang tải..." trước đây dùng chung value:null, gây
@@ -302,7 +385,11 @@ class _NhanVienListViewState extends State<NhanVienListView> {
         validValues.contains(_filterVaiTro) ? _filterVaiTro : null;
 
     return DropdownButtonFormField<String?>(
+      // key theo số option + giá trị: initialValue chỉ đọc lúc tạo field,
+      // đổi key để dropdown dựng lại khi options vừa nạp xong.
+      key: ValueKey('vai-tro-${_vaiTroOptions.length}-$currentValue'),
       initialValue: currentValue,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: 'Vai trò',
         border: const OutlineInputBorder(),
@@ -368,8 +455,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
               : (tenVaiTroRaw?.toString() ?? '--');
           final trangThai = item['trang_thai'] == true;
 
-          // Cột "Thao tác" chỉ hiện khi có quyền sửa, và không hiện cho chủ
-          // studio (giữ nguyên rule gốc).
+          // Nút "Sửa" chỉ hiện khi có quyền sửa, và không hiện cho chủ studio.
           final showEdit = coQuyenSua && !_laChuStudio(item);
 
           return ListTile(
