@@ -6,22 +6,12 @@ import '../../apis/services/tai_khoan_khach_hang_api.dart';
 import '../../components/app_modal.dart';
 import '../../components/app_text_input.dart';
 
-// TODO: chuyển sang configs/ (tương đương config.MIN_PASSWORD_LENGTH,
-// config.MAX_PASSWORD_LENGTH bên bản React) — tạm định nghĩa cục bộ giống
-// add_nhan_vien.dart để tránh phụ thuộc chéo module.
 const int kMinPasswordLengthKh = 6;
 const int kMaxPasswordLengthKh = 50;
 
 final RegExp _phoneRegexKh = RegExp(r'^0\d{9}$');
 final RegExp _emailRegexKh = RegExp(r'^\S+@\S+\.\S+$');
 
-/// Mở modal "Thêm khách hàng".
-/// Trả về `true` nếu tạo thành công (View danh sách tự reload),
-/// `null` nếu người dùng hủy.
-///
-/// [danhMucOptions]: danh sách danh mục đã tải xong ở View danh sách (mỗi
-/// item có `id_danh_muc_khach_hang`, `ten_hien_thi`) — modal không tự gọi
-/// API danh mục.
 Future<bool?> showAddTaiKhoanKhachHangModal(
   BuildContext context, {
   required List<Map<String, dynamic>> danhMucOptions,

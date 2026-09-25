@@ -16,7 +16,7 @@ class VaiTroApi {
   }) async {
     final kq = await _manager.send(
       ApiRequest(
-        apiUrl: '/vai-tro/danh-sach', // TODO: xác nhận đúng path module vai trò
+        apiUrl: '/vai-tro/danh-sach',
         method: 'GET',
         key: 'vai-tro-danh-sach',
         params: {

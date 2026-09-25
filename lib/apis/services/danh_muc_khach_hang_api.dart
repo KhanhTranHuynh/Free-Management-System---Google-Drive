@@ -2,13 +2,6 @@ import '../api_notify.dart';
 import '../api_request_manager.dart';
 import '../models/api_exception.dart';
 
-/// Gọi API danh mục khách hàng qua [ApiRequestManager].
-/// layDanhSach trả về field "data" bên trong envelope:
-/// { du_lieu: [...], phan_trang: {...} }. Không map sang model riêng —
-/// view tự đọc field thô từ Map (giống nhan_vien_api.dart).
-///
-/// TODO: xác nhận đúng path route BE (đang giả định theo convention chung
-/// module tai-khoan/tai-khoan-nhan-vien: /danh-muc-khach-hang/<hanh-dong>).
 class DanhMucKhachHangApi {
   DanhMucKhachHangApi(this._manager);
 
@@ -116,9 +109,6 @@ class DanhMucKhachHangApi {
     return const <String, dynamic>{};
   }
 
-  /// TODO: xác nhận BE nhận id qua body POST hay path param (vd DELETE
-  /// /danh-muc-khach-hang/:id). Đang giả định POST + body { id } giống
-  /// pattern cap-nhat ở trên để đồng nhất cách gọi trong app.
   Future<void> xoa(dynamic id) async {
     final kq = await _manager.send(
       ApiRequest(

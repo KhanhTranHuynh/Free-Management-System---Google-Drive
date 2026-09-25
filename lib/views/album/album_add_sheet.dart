@@ -1,10 +1,30 @@
 import 'package:flutter/material.dart';
 
-/// Form Thêm album — MẪU UI cho đẹp trang danh sách, chưa nối API thật.
-/// Khi có endpoint/payload chính xác, chỉ cần thay nội dung trong `_luu()`.
+import '../../apis/api_request_manager.dart';
+import '../../apis/models/api_exception.dart';
+import '../../apis/services/album_api.dart';
+
+/// Form Thêm album — ĐÃ nối API thật (`AlbumApi.taoMoi`).
 ///
-/// Trả về `true` qua Navigator.pop khi "tạo thành công" để AlbumListView
-/// biết mà tải lại danh sách — khớp prop `onCreated` bên React.
+/// FIX so với bản mẫu UI trước:
+///  1. `_luu()` gọi thẳng `AlbumApi.taoMoi(payload)` thay vì
+///     `Future.delayed` giả lập; bắt `ApiException` để hiện lỗi qua
+///     SnackBar — khớp convention try/catch của `danhSach`/`taoMoi`/
+///     `capNhat` (không dùng notifyApiByCode vì các method này throw,
+///     không tự toast như `doiTrangThai`).
+///  2. `khachHangDaChon` đọc đúng key `id_tai_khoan_khach_hang` — vì
+///     `widget.khachHangOptions` là data thô từ
+///     `TaiKhoanKhachHangApi.layDanhSach` (không phải cặp
+///     `{label, value}` như bên `AlbumEditSheet`).
+///  3. `ngay_chup` lưu dưới dạng ISO `yyyy-MM-dd` (BE cần định dạng này,
+///     khớp cách `AlbumEditSheet`/`edit.jsx` xử lý field này), chỉ hiển
+///     thị `d/M/yyyy` cho người dùng dễ đọc qua `_ngayChupHienThi`.
+///  4. Thêm validate tối thiểu: tên album bắt buộc — khớp validate bên
+///     `AlbumEditSheet`/`edit.jsx`.
+///
+/// Trả về data album vừa tạo (hoặc `true` nếu BE không trả `data`) qua
+/// `Navigator.pop` khi tạo thành công, để `AlbumListView` biết mà tải lại
+/// danh sách — khớp prop `onCreated` bên React.
 class AlbumAddSheet extends StatefulWidget {
   const AlbumAddSheet({super.key, required this.khachHangOptions});
 
@@ -15,8 +35,10 @@ class AlbumAddSheet extends StatefulWidget {
 }
 
 class _AlbumAddSheetState extends State<AlbumAddSheet> {
+  final _api = AlbumApi(ApiRequestManager.instance);
+
   final _tenAlbumController = TextEditingController();
-  final _ngayChupController = TextEditingController();
+  final _ngayChupController = TextEditingController(); // hiển thị d/M/yyyy
   final _duongDanDriveController = TextEditingController();
   final _ghiChuController = TextEditingController();
   final _matKhauController = TextEditingController();
@@ -25,6 +47,11 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
   bool _choPhepTai = true;
   bool _choPhepTruyCapCongKhai = false;
   bool _dangLuu = false;
+  String? _loiTenAlbum;
+
+  // Ngày chụp lưu riêng dạng ISO (yyyy-MM-dd) để gửi API — tách khỏi
+  // `_ngayChupController` vì controller chỉ dùng để HIỂN THỊ d/M/yyyy.
+  DateTime? _ngayChupDaChon;
 
   @override
   void dispose() {
@@ -36,17 +63,60 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
     super.dispose();
   }
 
+  void _thongBao(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  bool _validate() {
+    final loiTen = _tenAlbumController.text.trim().isEmpty
+        ? 'Vui lòng nhập tên album'
+        : null;
+    setState(() => _loiTenAlbum = loiTen);
+    return loiTen == null;
+  }
+
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _luu() async {
     if (_dangLuu) return;
+    if (!_validate()) return;
+
     setState(() => _dangLuu = true);
+    try {
+      final payload = <String, dynamic>{
+        'ten_album': _tenAlbumController.text.trim(),
+        'tai_khoan_khach_hang_id': _khachHangDaChon?['id_tai_khoan_khach_hang'],
+        'ngay_chup':
+            _ngayChupDaChon != null ? _isoDate(_ngayChupDaChon!) : null,
+        'duong_dan_drive': _duongDanDriveController.text.trim().isEmpty
+            ? null
+            : _duongDanDriveController.text.trim(),
+        'ghi_chu': _ghiChuController.text.trim().isEmpty
+            ? null
+            : _ghiChuController.text.trim(),
+        'cho_phep_xem_khong_dang_nhap': _choPhepTruyCapCongKhai,
+        'cho_phep_tai': _choPhepTai,
+        'mat_khau_truy_cap': _matKhauController.text.trim().isEmpty
+            ? null
+            : _matKhauController.text.trim(),
+      };
 
-    // TODO: thay đoạn delay này bằng gọi AlbumApi.taoMoi({...}) khi có
-    // endpoint/payload chính xác.
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+      final ket = await _api.taoMoi(payload);
 
-    if (!mounted) return;
-    setState(() => _dangLuu = false);
-    Navigator.of(context).pop(true);
+      if (!mounted) return;
+      _thongBao('Thêm album thành công');
+      Navigator.of(context).pop(ket.isNotEmpty ? ket : true);
+    } on ApiException catch (e) {
+      _thongBao(e.message.isNotEmpty ? e.message : 'Thêm album thất bại');
+    } catch (_) {
+      _thongBao('Đã có lỗi xảy ra. Vui lòng thử lại.');
+    } finally {
+      if (mounted) setState(() => _dangLuu = false);
+    }
   }
 
   Future<void> _chonNgayChup() async {
@@ -54,10 +124,11 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
       context: context,
       firstDate: DateTime(2015),
       lastDate: DateTime.now(),
-      initialDate: DateTime.now(),
+      initialDate: _ngayChupDaChon ?? DateTime.now(),
     );
     if (ket == null) return;
     setState(() {
+      _ngayChupDaChon = ket;
       _ngayChupController.text = '${ket.day}/${ket.month}/${ket.year}';
     });
   }
@@ -80,7 +151,13 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
             const SizedBox(height: 20),
             TextField(
               controller: _tenAlbumController,
-              decoration: const InputDecoration(labelText: 'Tên album'),
+              decoration: InputDecoration(
+                labelText: 'Tên album',
+                errorText: _loiTenAlbum,
+              ),
+              onChanged: (_) {
+                if (_loiTenAlbum != null) setState(() => _loiTenAlbum = null);
+              },
             ),
             const SizedBox(height: 12),
             TextField(

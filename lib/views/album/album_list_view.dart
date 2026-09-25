@@ -17,28 +17,6 @@ import 'album_add_sheet.dart';
 import 'album_edit_sheet.dart';
 import 'album_phan_cong_sheet.dart';
 
-/// Danh sách album — lưới card, cuộn vô tận, tab đếm theo trạng thái.
-/// Convert từ src/pages/album/index.jsx, giữ nguyên các quyết định logic:
-///  - requestId để huỷ kết quả của request cũ khi có request mới hơn
-///    (đổi tab/tìm kiếm/filter liên tục).
-///  - Không gọi API khi không có quyền xem (coQuyenXem == false).
-///  - Đổi trạng thái nhanh (hoàn thành/huỷ) qua confirm dialog, không mở
-///    modal riêng — khớp `window.confirm(...)` bên React.
-///
-/// KHÁC React ở chỗ modal Thêm/Sửa/Xoá/PhânCông: thay vì mount sẵn + prop
-/// `activeModal`, Flutter gọi trực tiếp `showModalBottomSheet`/`showDialog`
-/// khi bấm action — đây là idiom chuẩn của Flutter, không phải thiếu sót.
-///
-/// FIX so với bản trước:
-///  1. Quyền lấy qua `context.read/watch<AuthStore>()` (Provider) thay vì
-///     `AuthStore.instance` — khớp mẫu ở DanhMucKhachHangListView, và để
-///     widget tự rebuild khi quyền đổi lúc runtime.
-///  2. Bỏ tham số `dangHoatDong` khi gọi `TrangThaiAlbumApi.danhSach` (không
-///     có trong chữ ký API đã chốt) — lọc "đang hoạt động" phía client.
-///  3. `_xacNhanDoiTrangThai` giữ nguyên callback `onReloadCanThiet` khi gọi
-///     `AlbumApi.doiTrangThai` — đây là convention THẬT của method này
-///     (tự notifyApiByCode + reload qua callback, không throw), khác với
-///     `danhSach`/`xoa` vốn throw ApiException để View tự bắt.
 class AlbumListView extends StatefulWidget {
   const AlbumListView({super.key});
 
@@ -127,12 +105,6 @@ class _AlbumListViewState extends State<AlbumListView> {
       ..dispose();
     _timKiemController.dispose();
     super.dispose();
-  }
-
-  void _thongBao(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ---------------------------------------------------------------------
@@ -345,14 +317,6 @@ class _AlbumListViewState extends State<AlbumListView> {
     if (daPhanCong == true) unawaited(_taiLai());
   }
 
-  /// Xác nhận rồi đổi trạng thái album.
-  ///
-  /// LƯU Ý: khác với danhSach/xoa (ném ApiException để View tự bắt),
-  /// `AlbumApi.doiTrangThai` KHÔNG throw — nó tự gọi `notifyApiByCode` để
-  /// hiện toast thành công/lỗi, và chỉ chạy `onReloadCanThiet` khi thành
-  /// công (đúng convention của method này trong album_api.dart, giống
-  /// `onSuccess` của `useMutation` bên React). Vì vậy ở đây không cần
-  /// try/catch hay tự gọi `_thongBao`.
   Future<void> _xacNhanDoiTrangThai(
     Map<String, dynamic> album,
     String trangThaiMoi,
@@ -386,9 +350,6 @@ class _AlbumListViewState extends State<AlbumListView> {
   }
 
   Future<void> _xacNhanXoa(Map<String, dynamic> album) async {
-    // TODO: gọi AlbumApi.xoa(...) tương tự pattern ở
-    // DanhMucKhachHangListView — chưa có API xoá trong file React gốc để
-    // đối chiếu field chính xác.
     final dongY = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

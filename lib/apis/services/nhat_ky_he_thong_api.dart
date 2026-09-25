@@ -2,21 +2,6 @@ import '../api_notify.dart';
 import '../api_request_manager.dart';
 import '../models/api_exception.dart';
 
-/// Gọi API nhật ký hệ thống qua [ApiRequestManager].
-/// Khớp descriptor bên React: GET /nhat-ky-he-thong/danh-sach.
-///
-/// QUAN TRỌNG: kq.payload trả về NGUYÊN envelope đầy đủ từ BE:
-///   { data: { du_lieu: [...], phan_trang: {...} }, message, code,
-///     status, token, rToken }
-/// -> Phải bóc thêm 1 lớp 'data' mới lấy đúng { du_lieu, phan_trang }.
-/// (Đã xác nhận bằng data thật trả về từ BE ngày 24/09/2026.)
-///
-/// Chỉ có 1 thao tác duy nhất — xem danh sách (read-only, không có
-/// thêm/sửa/xoá). Không truyền sap_xep vì BE cố định
-/// ORDER BY created_at DESC (xem comment bên React).
-///
-/// TODO(tạm thời): các dòng `print(...)` bên dưới là log debug để xác minh
-/// runtime thực tế nếu vẫn còn lỗi sau fix này. Xoá khi đã xác nhận ổn.
 class NhatKyHeThongApi {
   NhatKyHeThongApi(this._manager);
 

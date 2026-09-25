@@ -41,19 +41,11 @@ const dsMucDieuHuongMacDinh = <ThanhDieuHuongItem>[
     key: 'log', // phải khớp key trong menuVaiTro (menu_role.dart)
     title: 'Log',
     icon: Icons.history_outlined,
-    // CHƯA có route/page thật — bấm vào sẽ ra NotFoundPage cho tới khi
-    // tạo page + đăng ký route trong app_routes.dart (xem TODO ở đó).
+
     link: '/log',
   ),
 ];
 
-/// Suy ra key tab nào nên SÁNG ứng với 1 tên route hiện tại.
-///
-/// Dùng ở `AppRoutes.onGenerateRoute` để tự động bọc MỌI trang bằng
-/// thanh điều hướng mà KHÔNG cần sửa từng page. Route là "trang con" của
-/// 1 tab (vd "danh mục khách hàng" là con của tab "Khách hàng") thì map
-/// về key của tab cha; route hoàn toàn không thuộc tab nào (login, 404,
-/// log...) trả về '' — thanh vẫn hiện, chỉ không tab nào sáng.
 String activeKeyChoRoute(String? routeName) {
   switch (routeName) {
     case '/home':

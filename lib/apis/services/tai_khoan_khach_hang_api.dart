@@ -54,8 +54,6 @@ class TaiKhoanKhachHangApi {
     return const <String, dynamic>{};
   }
 
-  /// TODO: xác nhận đúng key body BE đọc id khi lấy chi tiết (đang giả
-  /// định 'id', khớp convention chung).
   Future<Map<String, dynamic>> chiTiet(dynamic id) async {
     final kq = await _manager.send(
       ApiRequest(
@@ -143,10 +141,6 @@ class TaiKhoanKhachHangApi {
     return const <String, dynamic>{};
   }
 
-  /// Đổi trạng thái (khoá/mở) — BE tách riêng endpoint này khỏi capNhat,
-  /// khớp `doiTrangThai` bên React (khác với danh_muc_khach_hang, nơi
-  /// trạng thái vẫn gộp chung trong capNhat).
-  /// TODO: xác nhận đúng tên field id + trạng thái trong payload thật.
   Future<void> doiTrangThai(dynamic id, bool trangThai) async {
     final kq = await _manager.send(
       ApiRequest(
@@ -172,7 +166,6 @@ class TaiKhoanKhachHangApi {
     }
   }
 
-  /// TODO: xác nhận đúng key body BE đọc id khi xoá (đang giả định 'id').
   Future<void> xoa(dynamic id) async {
     final kq = await _manager.send(
       ApiRequest(

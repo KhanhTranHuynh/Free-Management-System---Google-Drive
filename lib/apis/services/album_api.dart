@@ -62,6 +62,155 @@ class AlbumApi {
     return const <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/tao-moi',
+        method: 'POST',
+        key: 'album-tao-moi',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Thêm album thất bại.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> chiTiet({required String idAlbum}) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/chi-tiet',
+        method: 'GET',
+        key: 'album-chi-tiet',
+        params: {'id_album': idAlbum},
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ??
+          const ApiException(message: 'Không tải được chi tiết album.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      // BE có thể trả { data: { item: {...} } } hoặc { data: {...} } —
+      // khớp `albumDetailRes?.data?.item || albumDetailRes?.data` bên React.
+      final inner = map['data'];
+      if (inner is Map) {
+        final innerMap = Map<String, dynamic>.from(inner);
+        final item = innerMap['item'];
+        if (item is Map) return Map<String, dynamic>.from(item);
+        return innerMap;
+      }
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
+  /// Cập nhật thông tin album (không bao gồm mật khẩu — xem [datMatKhau]).
+  /// `xoaTepAnhIds` (nếu có) là các id ảnh hiện có cần xoá khi lưu, khớp
+  /// field `xoa_tep_anh_ids` trong payload React.
+  Future<Map<String, dynamic>> capNhat(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/cap-nhat',
+        method: 'POST',
+        key: 'album-cap-nhat',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Cập nhật album thất bại.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
+  /// Đặt ảnh (đã có sẵn trong album, không phải ảnh mới upload) làm
+  /// thumbnail. Khớp `AlbumApi.datThumbnail` bên React (gọi ngay khi bấm
+  /// icon ngôi sao, không chờ nút Lưu).
+  Future<Map<String, dynamic>> datThumbnail({
+    required String idAlbum,
+    required String idTepAnh,
+  }) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/dat-thumbnail',
+        method: 'POST',
+        key: 'album-dat-thumbnail',
+        data: {
+          'id_album': idAlbum,
+          'id_tep_anh': idTepAnh,
+        },
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Đặt thumbnail thất bại.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
+  /// Đổi mật khẩu truy cập album — tách API riêng với `capNhat`, khớp
+  /// React (gọi tuần tự SAU khi capNhat thành công, lỗi ở bước này không
+  /// làm hỏng việc đã lưu thông tin album, chỉ báo lỗi riêng).
+  Future<Map<String, dynamic>> datMatKhau({
+    required String idAlbum,
+    required String matKhau,
+  }) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/dat-mat-khau',
+        method: 'POST',
+        key: 'album-dat-mat-khau',
+        data: {
+          'id_album': idAlbum,
+          'mat_khau': matKhau,
+        },
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Đổi mật khẩu thất bại.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
   Future<void> doiTrangThai({
     required String idAlbum,
     required String trangThai,
@@ -87,29 +236,5 @@ class AlbumApi {
         onSuccess: (_) => onReloadCanThiet(),
       ),
     );
-  }
-
-  Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
-    final kq = await _manager.send(
-      ApiRequest(
-        apiUrl: '/album/tao-moi',
-        method: 'POST',
-        key: 'album-tao-moi',
-        data: payload,
-      ),
-    );
-
-    if (!kq.isSuccess) {
-      throw kq.error ?? const ApiException(message: 'Thêm album thất bại.');
-    }
-
-    final raw = kq.payload;
-    if (raw is Map) {
-      final map = Map<String, dynamic>.from(raw);
-      final inner = map['data'];
-      if (inner is Map) return Map<String, dynamic>.from(inner);
-      return map;
-    }
-    return const <String, dynamic>{};
   }
 }
