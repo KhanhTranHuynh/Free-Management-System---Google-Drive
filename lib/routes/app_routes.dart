@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../components/main_scaffold.dart'; // đổi path nếu bạn để khác chỗ
 import '../pages/album_page.dart';
-import '../pages/log_page.dart';
+import '../pages/nhat_ky_he_thong_page.dart';
 import '../pages/tong_quan_page.dart.dart';
 import '../pages/khach_hang_page.dart';
 import '../pages/login_page.dart';
@@ -51,7 +51,7 @@ class AppRoutes {
         page = const AlbumPage();
         break;
       case log:
-        page = const LogPage();
+        page = const NhatKyHeThongPage();
         break;
       default:
         page = const NotFoundPage();
