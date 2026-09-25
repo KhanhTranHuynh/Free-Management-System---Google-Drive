@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../components/main_scaffold.dart'; // đổi path nếu bạn để khác chỗ
 import '../pages/album_page.dart';
 import '../pages/log_page.dart';
-import '../pages/home_page.dart';
+import '../pages/tong_quan_page.dart.dart';
 import '../pages/khach_hang_page.dart';
 import '../pages/login_page.dart';
 import '../pages/nhan_vien_page.dart';
@@ -39,7 +39,7 @@ class AppRoutes {
         page = const LoginPage();
         break;
       case home:
-        page = const HomePage();
+        page = const TongQuanPage();
         break;
       case nhanVien:
         page = const NhanVienPage();
