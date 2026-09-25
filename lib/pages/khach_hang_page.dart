@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 import '../views/danh_muc_khach_hang/danh_muc_khach_hang_list_view.dart';
 import '../views/khach_hang/khach_hang_list_view.dart';
 
-/// Trang "Khách hàng" — khung mỏng (Scaffold + AppBar + SafeArea, khớp mẫu
-/// NhanVienPage), ghép 2 view qua Tab, không chứa logic riêng. Tương đương
-/// bản React KhachHangPage.jsx (TabsWithIcon với 2 tab: "Danh Mục Khách
-/// Hàng" / "Khách hàng").
 class KhachHangPage extends StatefulWidget {
   const KhachHangPage({super.key});
 

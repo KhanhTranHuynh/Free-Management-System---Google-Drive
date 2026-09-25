@@ -3,7 +3,12 @@ import '../api_request_manager.dart';
 import '../models/api_exception.dart';
 
 /// Gọi API danh mục khách hàng qua [ApiRequestManager].
-/// Trả về field "data" bên trong envelope: { du_lieu: [...], phan_trang: {...} }.
+/// layDanhSach trả về field "data" bên trong envelope:
+/// { du_lieu: [...], phan_trang: {...} }. Không map sang model riêng —
+/// view tự đọc field thô từ Map (giống nhan_vien_api.dart).
+///
+/// TODO: xác nhận đúng path route BE (đang giả định theo convention chung
+/// module tai-khoan/tai-khoan-nhan-vien: /danh-muc-khach-hang/<hanh-dong>).
 class DanhMucKhachHangApi {
   DanhMucKhachHangApi(this._manager);
 
@@ -13,6 +18,8 @@ class DanhMucKhachHangApi {
     String timKiem = '',
     int trang = 1,
     int soLuong = 10,
+    bool? dangHoatDong,
+    String? sapXep,
   }) async {
     final kq = await _manager.send(
       ApiRequest(
@@ -23,6 +30,8 @@ class DanhMucKhachHangApi {
           'tim_kiem': timKiem,
           'trang': trang,
           'so_luong': soLuong,
+          if (dangHoatDong != null) 'dang_hoat_dong': dangHoatDong,
+          if (sapXep != null && sapXep.isNotEmpty) 'sap_xep': sapXep,
         },
       ),
     );
@@ -33,17 +42,105 @@ class DanhMucKhachHangApi {
           kq,
           options: const ApiNotifyOptions(
             silentOnSuccess: true,
-            errorMessage: 'Không tải được danh mục khách hàng',
+            errorMessage: 'Không tải được danh sách danh mục khách hàng',
           ),
         );
       }
       throw kq.error ??
-          const ApiException(message: 'Không tải được danh mục khách hàng.');
+          const ApiException(
+              message: 'Không tải được danh sách danh mục khách hàng.');
     }
 
-    // payload = envelope['data'] -> chứa { du_lieu, phan_trang } đúng như BE trả.
     final data = kq.payload;
     if (data is Map) return Map<String, dynamic>.from(data);
     return const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/danh-muc-khach-hang/tao-moi',
+        method: 'POST',
+        key: 'danh-muc-khach-hang-tao-moi',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không tạo được danh mục khách hàng mới',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(
+              message: 'Không tạo được danh mục khách hàng mới.');
+    }
+
+    final data = kq.payload;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> capNhat(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/danh-muc-khach-hang/cap-nhat',
+        method: 'POST',
+        key: 'danh-muc-khach-hang-cap-nhat',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không cập nhật được danh mục khách hàng',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(
+              message: 'Không cập nhật được danh mục khách hàng.');
+    }
+
+    final data = kq.payload;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return const <String, dynamic>{};
+  }
+
+  /// TODO: xác nhận BE nhận id qua body POST hay path param (vd DELETE
+  /// /danh-muc-khach-hang/:id). Đang giả định POST + body { id } giống
+  /// pattern cap-nhat ở trên để đồng nhất cách gọi trong app.
+  Future<void> xoa(dynamic id) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/danh-muc-khach-hang/xoa',
+        method: 'POST',
+        key: 'danh-muc-khach-hang-xoa',
+        data: {'id': id},
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không xoá được danh mục khách hàng',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(message: 'Không xoá được danh mục khách hàng.');
+    }
   }
 }
