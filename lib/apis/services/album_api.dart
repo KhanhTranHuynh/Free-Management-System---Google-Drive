@@ -90,9 +90,9 @@ class AlbumApi {
     final kq = await _manager.send(
       ApiRequest(
         apiUrl: '/album/chi-tiet',
-        method: 'GET',
+        method: 'POST',
         key: 'album-chi-tiet',
-        params: {'id_album': idAlbum},
+        data: {'id_album': idAlbum},
       ),
     );
 
@@ -113,6 +113,49 @@ class AlbumApi {
         if (item is Map) return Map<String, dynamic>.from(item);
         return innerMap;
       }
+      return map;
+    }
+    return const <String, dynamic>{};
+  }
+
+  /// Danh sách ảnh (tệp ảnh) của 1 album — PHÂN TRANG, dùng để tải khối
+  /// "Ảnh hiện có" trong sheet Sửa album theo từng trang (mặc định 24
+  /// ảnh/lần) thay vì nạp nguyên danh sách ảnh trong 1 lần, tránh
+  /// render/DOM quá nặng khi album có nhiều ảnh. Khớp
+  /// `useAnhAlbumPhanTrang` bên React, gọi `AlbumApi.danhSachTepAnh`
+  /// (`/album/danh-sach-tep-anh`).
+  /// Trả về { du_lieu, phan_trang } — cùng khuôn dạng với [danhSach].
+  Future<Map<String, dynamic>> danhSachTepAnh({
+    required String idAlbum,
+    required int trang,
+    int soLuong = 24,
+  }) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/danh-sach-tep-anh',
+        method: 'POST',
+        // key gắn theo id_album + trang — khớp cách React đặt key
+        // `TepAnhDanhSach:${id_album}:${trang}` để mỗi trang là 1 request
+        // độc lập, tải trang 2 không bị huỷ bởi/không huỷ request trang 1.
+        key: 'album-danh-sach-tep-anh-$idAlbum-$trang',
+        data: {
+          'id_album': idAlbum,
+          'trang': trang,
+          'so_luong': soLuong,
+        },
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ??
+          const ApiException(message: 'Không tải được danh sách ảnh.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
       return map;
     }
     return const <String, dynamic>{};

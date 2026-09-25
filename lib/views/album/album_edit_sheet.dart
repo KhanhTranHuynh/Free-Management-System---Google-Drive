@@ -8,6 +8,13 @@ import '../../apis/services/album_api.dart';
 import '../../apis/services/tai_khoan_khach_hang_api.dart';
 import '../../components/app_images.dart';
 
+/// Sửa album.
+///
+/// FIX so với bản trước: khối "Ảnh hiện có" giờ tải qua
+/// `AlbumApi.danhSachTepAnh` (phân trang thật, mặc định 24 ảnh/lần) thay
+/// vì đọc tạm từ `album['danh_sach_anh']`/`chiTiet()['danh_sach_anh']` —
+/// khớp `useAnhAlbumPhanTrang` bên React. Không còn phụ thuộc field
+/// `danh_sach_anh` trong payload danh sách/chi tiết album nữa.
 class AlbumEditSheet extends StatefulWidget {
   const AlbumEditSheet({
     super.key,
@@ -37,6 +44,8 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   // TODO: đối chiếu config.MIN_PASSWORD_LENGTH / MAX_PASSWORD_LENGTH thật.
   static const int _minPasswordLength = 6;
   static const int _maxPasswordLength = 32;
+  // Khớp so_luong mặc định 24 ảnh/lần bên useAnhAlbumPhanTrang (React).
+  static const int _anhPageSize = 24;
 
   final _api = AlbumApi(ApiRequestManager.instance);
   final _khachHangApi = TaiKhoanKhachHangApi(ApiRequestManager.instance);
@@ -73,11 +82,18 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   int _khachHangRequestSeq = 0;
   Map<String, dynamic>? _khachHangHienTaiPin;
 
-  // ----- ảnh hiện có -----
+  // ----- ảnh hiện có (phân trang qua AlbumApi.danhSachTepAnh) -----
   List<Map<String, dynamic>> _anhHienCo = [];
+  int _anhTrang = 1;
+  int _anhTongSo = 0;
+  bool _dangTaiAnh = true; // tải trang đầu
+  bool _dangTaiThemAnh = false; // tải thêm (nối vào danh sách)
+  String? _loiTaiAnh;
   final Set<String> _xoaTepAnhIds = {};
   String? _thumbnailOverrideId;
   bool _dangDatThumbnail = false;
+
+  bool get _conAnhDeTai => _anhHienCo.length < _anhTongSo;
 
   bool _dangLuu = false;
 
@@ -121,12 +137,10 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
     _khachHangOptions =
         _khachHangHienTaiPin != null ? [_khachHangHienTaiPin!] : [];
 
-    _anhHienCo =
-        List<Map<String, dynamic>>.from(album['danh_sach_anh'] as List? ?? []);
-
     _timKiemKhachHangController.addListener(_onTimKiemKhachHangChanged);
     unawaited(_taiChiTiet());
     unawaited(_fetchKhachHang(reset: true));
+    unawaited(_taiAnhHienCo());
   }
 
   @override
@@ -201,10 +215,9 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
             ct['cho_phep_xem_khong_dang_nhap'] as bool? ??
                 _choPhepXemKhongDangNhap;
 
-        if (ct['danh_sach_anh'] is List) {
-          _anhHienCo =
-              List<Map<String, dynamic>>.from(ct['danh_sach_anh'] as List);
-        }
+        // KHÔNG còn đọc ct['danh_sach_anh'] ở đây — ảnh hiện có giờ tải
+        // riêng qua `_taiAnhHienCo()` (AlbumApi.danhSachTepAnh), khớp
+        // React (hook `useAnhAlbumPhanTrang` độc lập với useQuery chi tiết).
 
         final pin = _timOptionKhachHangHienTai(ct);
         if (pin != null && _khachHangHienTaiPin == null) {
@@ -218,6 +231,62 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
       // Không tải được chi tiết -> vẫn giữ form dựng từ item trong danh
       // sách, không chặn thao tác sửa (khớp React chỉ log lỗi).
       if (mounted) setState(() => _dangTaiChiTiet = false);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Ảnh hiện có — phân trang qua AlbumApi.danhSachTepAnh
+  // ---------------------------------------------------------------------
+
+  Future<void> _taiAnhHienCo({bool append = false}) async {
+    final trangCanTai = append ? _anhTrang + 1 : 1;
+
+    setState(() {
+      if (append) {
+        _dangTaiThemAnh = true;
+      } else {
+        _dangTaiAnh = true;
+      }
+      _loiTaiAnh = null;
+    });
+
+    try {
+      final res = await _api.danhSachTepAnh(
+        idAlbum: _idAlbum,
+        trang: trangCanTai,
+        soLuong: _anhPageSize,
+      );
+
+      if (!mounted) return;
+
+      final list =
+          List<Map<String, dynamic>>.from(res['du_lieu'] as List? ?? []);
+      final phanTrang = res['phan_trang'] as Map?;
+      final tongSo = (phanTrang?['tong_so'] as num?)?.toInt() ?? list.length;
+
+      setState(() {
+        _anhHienCo = append ? [..._anhHienCo, ...list] : list;
+        _anhTongSo = tongSo;
+        _anhTrang = trangCanTai;
+        _dangTaiAnh = false;
+        _dangTaiThemAnh = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _dangTaiAnh = false;
+        _dangTaiThemAnh = false;
+        if (!append) {
+          _loiTaiAnh = e.message.isNotEmpty ? e.message : 'Không tải được ảnh.';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _dangTaiAnh = false;
+        _dangTaiThemAnh = false;
+        if (!append) _loiTaiAnh = 'Không tải được ảnh.';
+      });
     }
   }
 
@@ -756,18 +825,56 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
   Widget _muc2AnhHienCo() {
     final list = _anhHienCoDaSapXep;
+    final hienSkeleton = _dangTaiAnh && list.isEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeading(2, 'Ảnh trong album'),
-        if (list.isEmpty)
+
+        if (_loiTaiAnh != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(_loiTaiAnh!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ),
+                TextButton(
+                  onPressed: () => _taiAnhHienCo(),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+
+        if (hienSkeleton)
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: 6,
+            itemBuilder: (context, index) => Container(
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          )
+        else if (list.isEmpty && _loiTaiAnh == null)
           Text(
             'Album chưa có ảnh nào.',
             style: Theme.of(context).textTheme.bodySmall,
           )
-        else ...[
+        else if (list.isNotEmpty) ...[
           Text(
-            'Ảnh hiện có (${list.length}) — bấm ảnh để xem, biểu tượng sao để đặt thumbnail, thùng rác để đánh dấu xoá.',
+            'Ảnh hiện có ($_anhTongSo) — bấm ảnh để xem, biểu tượng sao để đặt thumbnail, thùng rác để đánh dấu xoá.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -786,8 +893,8 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
               final idTepAnh = anh['id_tep_anh']?.toString() ?? '';
               final seXoa = _xoaTepAnhIds.contains(idTepAnh);
               final laThumb = _laThumbnail(anh);
-              final url = anh['duong_dan_anh']?.toString() ??
-                  anh['thumbnail_view']?.toString();
+
+              final url = anh['duong_dan_drive_xem']?.toString();
 
               return Opacity(
                 opacity: seXoa ? 0.5 : 1,
@@ -810,7 +917,14 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: url != null
-                              ? AnhMang(url: url, fit: BoxFit.cover)
+                              ? AnhMang(
+                                  url: url,
+                                  fit: BoxFit.cover,
+                                  // Card ảnh trong lưới nhỏ (3 cột) — resize
+                                  // nhỏ hơn ảnh bìa AlbumCard (400), khớp
+                                  // tỉ lệ kích thước hiển thị thực tế.
+                                  kichThuocResize: 200,
+                                )
                               : const ColoredBox(color: Colors.black12),
                         ),
                       ),
@@ -854,6 +968,25 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
               );
             },
           ),
+          if (_conAnhDeTai)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: _dangTaiThemAnh
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : TextButton.icon(
+                        onPressed: () => _taiAnhHienCo(append: true),
+                        icon: const Icon(Icons.expand_more, size: 18),
+                        label: Text(
+                          'Tải thêm ảnh (${_anhHienCo.length}/$_anhTongSo)',
+                        ),
+                      ),
+              ),
+            ),
           if (_xoaTepAnhIds.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -864,8 +997,8 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
             ),
         ],
         const SizedBox(height: 8),
-        // TODO: khối "Thêm ảnh mới / thay ảnh" — chưa convert, xem ghi chú
-        // đầu file. Tạm để nút vô hiệu hoá kèm giải thích cho người dùng.
+        // TODO: khối "Thêm ảnh mới / thay ảnh" — chưa convert (cần
+        // useAlbumFileUpload/TepAnhApi tương ứng phía Dart để đối chiếu).
         OutlinedButton.icon(
           onPressed: null,
           icon: const Icon(Icons.add_photo_alternate_outlined),
