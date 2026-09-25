@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Header dùng chung cho app PhotoFlow — logo + tên app + toggle dark
-/// mode + avatar người dùng (chữ cái đầu + chấm trạng thái online).
 class AppHeader extends StatelessWidget {
   const AppHeader({
     super.key,
@@ -39,11 +37,18 @@ class AppHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final topSafePad = MediaQuery.of(context).padding.top;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.only(
+        top: topSafePad +
+            14, // 14 = vertical padding gốc, giữ nguyên khoảng cách cũ bên dưới status bar
+        left: 16,
+        right: 16,
+        bottom: 14,
+      ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.06),

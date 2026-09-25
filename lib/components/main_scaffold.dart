@@ -11,6 +11,7 @@
 // guard/layout của routing, không phải UI thuần.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app_header.dart';
@@ -90,6 +91,19 @@ String activeKeyChoRoute(String? routeName) {
 /// duy nhất ở `AppRoutes.onGenerateRoute` (xem app_routes.dart), nhờ vậy
 /// thêm trang mới sau này tự động có cả header lẫn thanh này mà không cần
 /// sửa gì thêm.
+///
+/// FIX màu status bar "hở 1 dải" phía trên header (2026-09-25):
+/// - Trước đây `AppHeader` nằm trong `SafeArea(top: true)`, nên status
+///   bar (giờ/wifi/pin) tự vẽ màu riêng của hệ điều hành, không ăn theo
+///   nền của `AppHeader` -> nhìn bị cắt 2 màu ở mép trên.
+/// - Cách fix "tự tràn" đúng bản chất: bỏ `SafeArea(top: true)` bọc
+///   `AppHeader`, cho status bar trong suốt qua `AnnotatedRegion`, và để
+///   chính `AppHeader` tự chừa `MediaQuery.padding.top` bên trong nó. Nền
+///   `AppHeader` nhờ vậy tự vẽ tràn lên tới mép trên cùng, không cần biết
+///   hay đồng bộ màu với `Scaffold` ở đây.
+/// - `AppHeader` cần tự thêm `padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top)`
+///   (hoặc tương đương) ở widget gốc của nó để nội dung (logo/tên/giờ)
+///   không bị đè lên status bar. Xem ghi chú trong app_header.dart.
 class ThanhDieuHuongWrapper extends StatelessWidget {
   const ThanhDieuHuongWrapper({
     super.key,
@@ -119,44 +133,58 @@ class ThanhDieuHuongWrapper extends StatelessWidget {
         items.where((item) => coQuyenTruyCapMenu(item.key, vaiTro)).toList();
 
     final themeStore = context.watch<ThemeStore>();
+    final isDarkMode = themeStore.mode == ThemeMode.dark;
 
-    return Scaffold(
-      body: SafeArea(
-        // bottom: false — để bottomNavigationBar tự lo phần safe-area
-        // dưới (tránh double padding với SafeArea của ThanhDieuHuongDuoi).
-        bottom: false,
-        child: Column(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // Status bar trong suốt để nền AppHeader tự tràn lên tới mép trên
+      // cùng; icon giờ/wifi/pin đổi sáng-tối theo theme cho tương phản.
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness:
+            isDarkMode ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
+      ),
+      child: Scaffold(
+        body: Column(
           children: [
+            // AppHeader nằm NGOÀI SafeArea(top: true) một cách cố ý, để
+            // nền của nó tự vẽ tràn lên hết status bar. AppHeader tự lo
+            // chừa khoảng trống bằng MediaQuery.padding.top bên trong nó
+            // (xem app_header.dart) — không set màu ở Scaffold/Container
+            // ngoài để tránh phải đồng bộ 2 nơi như cách cũ.
             if (hienHeader)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: AppHeader(
-                  // TODO: đổi tên field cho khớp model nguoiDung thật
-                  // trong AuthStore (vd ten_hien_thi, ho_ten...).
-                  tenNguoiDung: nguoiDung?.hoTen ?? '?',
-                  isDarkMode: themeStore.mode == ThemeMode.dark,
-                  // ThemeStore chỉ có setMode(ThemeMode), không có
-                  // toggle() riêng — tự đảo giữa light/dark ở đây. Nếu
-                  // đang ở ThemeMode.system, bấm 1 lần sẽ set thẳng về
-                  // dark (không quay lại system qua nút này).
-                  onToggleDarkMode: () => themeStore.setMode(
-                    themeStore.mode == ThemeMode.dark
-                        ? ThemeMode.light
-                        : ThemeMode.dark,
-                  ),
+              AppHeader(
+                // TODO: đổi tên field cho khớp model nguoiDung thật
+                // trong AuthStore (vd ten_hien_thi, ho_ten...).
+                tenNguoiDung: nguoiDung?.hoTen ?? '?',
+                isDarkMode: isDarkMode,
+                // ThemeStore chỉ có setMode(ThemeMode), không có
+                // toggle() riêng — tự đảo giữa light/dark ở đây. Nếu
+                // đang ở ThemeMode.system, bấm 1 lần sẽ set thẳng về
+                // dark (không quay lại system qua nút này).
+                onToggleDarkMode: () => themeStore.setMode(
+                  isDarkMode ? ThemeMode.light : ThemeMode.dark,
                 ),
               ),
-            Expanded(child: child),
+            // Nội dung trang vẫn cần SafeArea để tránh notch/home-indicator
+            // phía dưới; top: false vì phần trên đã được AppHeader lo.
+            Expanded(
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: child,
+              ),
+            ),
           ],
         ),
-      ),
-      bottomNavigationBar: ThanhDieuHuongDuoi(
-        items: dsItemDuocPhep,
-        activeKey: activeKey,
-        onChon: (item) {
-          if (item.key == activeKey) return; // đang ở tab này rồi
-          Navigator.of(context).pushReplacementNamed(item.link);
-        },
+        bottomNavigationBar: ThanhDieuHuongDuoi(
+          items: dsItemDuocPhep,
+          activeKey: activeKey,
+          onChon: (item) {
+            if (item.key == activeKey) return; // đang ở tab này rồi
+            Navigator.of(context).pushReplacementNamed(item.link);
+          },
+        ),
       ),
     );
   }
