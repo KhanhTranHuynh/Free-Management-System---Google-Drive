@@ -69,10 +69,10 @@ class AlbumApi {
   }) async {
     final kq = await _manager.send(
       ApiRequest(
-        apiUrl: '/album/doi-trang-thai',
-        method: 'PUT',
+        apiUrl: '/album/trang-thai',
+        method: 'POST',
         key: 'album-doi-trang-thai',
-        params: {
+        data: {
           'id_album': idAlbum,
           'trang_thai': trangThai,
         },
@@ -87,5 +87,29 @@ class AlbumApi {
         onSuccess: (_) => onReloadCanThiet(),
       ),
     );
+  }
+
+  Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/tao-moi',
+        method: 'POST',
+        key: 'album-tao-moi',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Thêm album thất bại.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return map;
+    }
+    return const <String, dynamic>{};
   }
 }
