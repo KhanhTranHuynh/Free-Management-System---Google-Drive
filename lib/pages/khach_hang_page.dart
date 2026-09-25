@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../views/danh_muc_khach_hang/danh_muc_khach_hang_list_view.dart';
-import '../views/khach_hang/khach_hang_list_view.dart';
+import '../views/tai_khoan_khach_hang/tai_khoan_khach_hang_list_view.dart';
 
 class KhachHangPage extends StatefulWidget {
   const KhachHangPage({super.key});
@@ -55,7 +55,7 @@ class _KhachHangPageState extends State<KhachHangPage>
           controller: _tabController,
           children: [
             DanhMucKhachHangListView(),
-            KhachHangListView(),
+            TaiKhoanKhachHangListView(),
           ],
         ),
       ),
