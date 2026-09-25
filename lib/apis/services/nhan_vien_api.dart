@@ -57,13 +57,6 @@ class NhanVienApi {
     return const <String, dynamic>{};
   }
 
-  /// Tạo nhân viên mới.
-  /// payload: so_dien_thoai, mat_khau, ho_ten, email, vai_tro (List<String>),
-  /// trang_thai (bool), mau_sac (String?).
-  ///
-  /// Lỗi: toast lỗi được hiện ở đây (notifyApiByCode) rồi ném [ApiException].
-  /// Thành công: KHÔNG toast ở tầng API (silentOnSuccess) — view gọi tự
-  /// hiện thông báo "Thêm nhân viên thành công".
   Future<Map<String, dynamic>> taoMoi(Map<String, dynamic> payload) async {
     final kq = await _manager.send(
       ApiRequest(
@@ -86,6 +79,35 @@ class NhanVienApi {
       }
       throw kq.error ??
           const ApiException(message: 'Không tạo được nhân viên mới.');
+    }
+
+    final data = kq.payload;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> capNhat(Map<String, dynamic> payload) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/tai-khoan/cap-nhat',
+        method: 'POST',
+        key: 'nhan-vien-cap-nhat',
+        data: payload,
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không cập nhật được nhân viên',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(message: 'Không cập nhật được nhân viên.');
     }
 
     final data = kq.payload;

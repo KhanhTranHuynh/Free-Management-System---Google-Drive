@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/nhan_vien_api.dart';
 import '../../components/app_modal.dart';
+import '../../components/app_text_input.dart';
 
 // TODO: chuyển sang configs/ (tương đương config.MIN_PASSWORD_LENGTH,
 // config.MAX_PASSWORD_LENGTH, config.MAU_SAC_MAC_DINH bên bản React).
@@ -81,7 +81,6 @@ class _AddNhanVienController extends ChangeNotifier {
   bool trangThai = true; // mặc định Hoạt động
   String mauSac = kMauSacMacDinh;
 
-  bool showPassword = false;
   bool isSaving = false;
   String? formError;
   final Map<String, String> errors = {};
@@ -108,11 +107,6 @@ class _AddNhanVienController extends ChangeNotifier {
   void setMauSac(String hex) {
     mauSac = hex;
     errors.remove('mauSac');
-    notifyListeners();
-  }
-
-  void toggleShowPassword() {
-    showPassword = !showPassword;
     notifyListeners();
   }
 
@@ -262,35 +256,6 @@ class _AddNhanVienBody extends StatelessWidget {
 
   final _AddNhanVienController c;
   final List<Map<String, dynamic>> vaiTroOptions;
-
-  Widget _text({
-    required TextEditingController ctrl,
-    required String label,
-    required String errKey,
-    String? hint,
-    TextInputType? type,
-    bool obscure = false,
-    Widget? suffix,
-    List<TextInputFormatter>? formatters,
-  }) {
-    return TextField(
-      controller: ctrl,
-      enabled: !c.isSaving,
-      keyboardType: type,
-      obscureText: obscure,
-      autocorrect: false,
-      enableSuggestions: false,
-      inputFormatters: formatters,
-      onChanged: (_) => c.clearError(errKey),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        errorText: c.errors[errKey],
-        border: const OutlineInputBorder(),
-        suffixIcon: suffix,
-      ),
-    );
-  }
 
   ({int score, String label, Color color}) _strength(String pw) {
     if (pw.isEmpty) return (score: 0, label: '', color: Colors.grey);
@@ -477,58 +442,77 @@ class _AddNhanVienBody extends StatelessWidget {
     return ListenableBuilder(
       listenable: c,
       builder: (context, _) {
-        final eye = IconButton(
-          icon: Icon(c.showPassword ? Icons.visibility_off : Icons.visibility),
-          onPressed: c.toggleShowPassword,
-        );
-
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _text(
-              ctrl: c.hoTen,
-              label: 'Họ tên *',
+            // "Họ tên" là loại `text` -> AppTextInput giữ autocorrect/
+            // enableSuggestions bật, tránh bug mất chữ khi gõ tiếng Việt.
+            AppTextInput(
+              label: 'Họ tên',
+              type: AppTextInputType.text,
+              controller: c.hoTen,
               hint: 'Nhập họ tên nhân viên',
-              errKey: 'hoTen',
+              required: true,
+              requiredMessage: 'Vui lòng nhập họ tên',
+              enabled: !c.isSaving,
+              errorText: c.errors['hoTen'],
+              onChanged: (_) => c.clearError('hoTen'),
             ),
             const SizedBox(height: 14),
-            _text(
-              ctrl: c.soDienThoai,
-              label: 'Số điện thoại *',
+            AppTextInput(
+              label: 'Số điện thoại',
+              type: AppTextInputType.phone,
+              controller: c.soDienThoai,
               hint: 'Số điện thoại đăng nhập',
-              errKey: 'soDienThoai',
-              type: TextInputType.phone,
-              formatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
+              required: true,
+              requiredMessage: 'Vui lòng nhập số điện thoại',
+              enabled: !c.isSaving,
+              errorText: c.errors['soDienThoai'],
+              onChanged: (_) => c.clearError('soDienThoai'),
             ),
             const SizedBox(height: 14),
-            _text(
-              ctrl: c.matKhau,
-              label: 'Mật khẩu *',
+            AppTextInput(
+              label: 'Mật khẩu',
+              type: AppTextInputType.password,
+              controller: c.matKhau,
               hint: 'Tối thiểu $kMinPasswordLength ký tự',
-              errKey: 'matKhau',
-              obscure: !c.showPassword,
-              suffix: eye,
+              required: true,
+              requiredMessage: 'Vui lòng nhập mật khẩu',
+              minPasswordLength: kMinPasswordLength,
+              maxPasswordLength: kMaxPasswordLength,
+              enabled: !c.isSaving,
+              errorText: c.errors['matKhau'],
+              onChanged: (_) => c.clearError('matKhau'),
             ),
             const SizedBox(height: 14),
-            _text(
-              ctrl: c.xacNhanMatKhau,
-              label: 'Xác nhận mật khẩu *',
+            AppTextInput(
+              label: 'Xác nhận mật khẩu',
+              type: AppTextInputType.password,
+              controller: c.xacNhanMatKhau,
               hint: 'Nhập lại mật khẩu',
-              errKey: 'xacNhan',
-              obscure: !c.showPassword,
+              required: true,
+              requiredMessage: 'Vui lòng xác nhận mật khẩu',
+              enabled: !c.isSaving,
+              errorText: c.errors['xacNhan'],
+              onChanged: (_) => c.clearError('xacNhan'),
+              // So khớp với mật khẩu ở ô trên, giống rule bên _validate().
+              validator: (raw) => raw != c.matKhau.text.trim()
+                  ? 'Mật khẩu xác nhận không khớp'
+                  : null,
             ),
             _passwordHints(),
             const SizedBox(height: 14),
-            _text(
-              ctrl: c.email,
-              label: 'Email *',
+            AppTextInput(
+              label: 'Email',
+              type: AppTextInputType.email,
+              controller: c.email,
               hint: 'Nhập địa chỉ email',
-              errKey: 'email',
-              type: TextInputType.emailAddress,
+              required: true,
+              requiredMessage: 'Vui lòng nhập email',
+              enabled: !c.isSaving,
+              errorText: c.errors['email'],
+              onChanged: (_) => c.clearError('email'),
             ),
             const SizedBox(height: 14),
             _vaiTroField(context),

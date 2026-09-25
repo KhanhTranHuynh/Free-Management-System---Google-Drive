@@ -9,6 +9,7 @@ import '../../apis/services/nhan_vien_api.dart';
 import '../../apis/services/vai_tro_api.dart';
 import '../../stores/auth_store.dart';
 import 'add_nhan_vien.dart';
+import 'edit_nhan_vien.dart';
 
 /// Danh sách nhân viên. Toàn bộ state (search/filter/sort/phân trang) +
 /// gọi API nằm cục bộ trong View này — AuthStore chỉ được đọc để lấy quyền
@@ -51,14 +52,14 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   String? _sortColumn; // vd "ho_ten"
   String _sortType = 'ASC'; // "ASC" | "DESC"
 
-  // ----- options filter "Vai trò" (nạp 1 lần, dùng lại cho modal thêm)
+  // ----- options filter "Vai trò" (nạp 1 lần, dùng lại cho modal thêm/sửa)
   // Lọc bỏ ngay từ nguồn các bản ghi thiếu ma_vai_tro để không bao giờ
   // sinh ra 1 DropdownMenuItem trùng value:null với mục "Tất cả vai trò".
   List<Map<String, dynamic>> _vaiTroOptions = [];
   bool _vaiTroLoading = false;
   Future<void>? _vaiTroFuture; // chống gọi trùng khi đang tải
 
-  bool _dangMoModal = false; // chặn bấm "Thêm" nhiều lần
+  bool _dangMoModal = false; // chặn bấm "Thêm"/"Sửa" nhiều lần cùng lúc
 
   int get _tongSo => (_phanTrang['tong_so'] as num?)?.toInt() ?? 0;
   int get _tongTrang => _tongSo <= 0 ? 1 : (_tongSo / _soLuong).ceil();
@@ -122,7 +123,22 @@ class _NhanVienListViewState extends State<NhanVienListView> {
             _readList(body).where((vt) => vt['ma_vai_tro'] != null).toList();
         _vaiTroLoading = false;
       });
-    } catch (_) {
+      // FIX: log cảnh báo nếu API trả về 200 nhưng danh sách rỗng (vd BE
+      // đổi tên field khác 'du_lieu', hoặc 'phan_trang' khác cấu trúc
+      // mong đợi) — trước đây trường hợp này im lặng hoàn toàn và khiến
+      // nút Thêm/Sửa bị chặn ở _dambaoVaiTroDaTai() mà không ai biết vì sao.
+      if (_vaiTroOptions.isEmpty) {
+        debugPrint(
+          '[NhanVien] CANH BAO: _fetchVaiTro tra ve danh sach RONG. '
+          'body nhan duoc tu API: $body',
+        );
+      }
+    } catch (e, st) {
+      // FIX: log rõ lỗi ra console thay vì nuốt im lặng. Đây là nguyên
+      // nhân phổ biến nhất khiến nút "Thêm"/"Sửa" bấm mà không mở gì:
+      // _vaiTroOptions luôn rỗng -> _dambaoVaiTroDaTai() chặn từ trước
+      // khi kịp gọi showAppModal.
+      debugPrint('[NhanVien] LOI khi tai danh sach vai tro: $e\n$st');
       if (!mounted) return;
       setState(() {
         _vaiTroOptions = [];
@@ -175,28 +191,67 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   /// Gọi lại sau khi thêm/sửa/xoá nhân viên thành công (giữ nguyên trang).
   void reload() => unawaited(_taiLai());
 
-  /// Mở modal thêm nhân viên. Đảm bảo danh sách vai trò đã tải xong trước
-  /// khi mở (modal nhận bản chụp options, không tự cập nhật sau đó).
+  /// Đảm bảo danh sách vai trò đã tải xong trước khi mở modal thêm/sửa
+  /// (cả 2 modal nhận bản chụp options, không tự cập nhật sau đó).
+  Future<bool> _dambaoVaiTroDaTai() async {
+    if (_vaiTroOptions.isEmpty) await _taiVaiTro();
+    if (!mounted) return false;
+    if (_vaiTroOptions.isEmpty) {
+      // FIX: log để biết chính xác lúc nào popup bị chặn tại đây, thay vì
+      // chỉ hiện 1 toast dễ bị bỏ sót.
+      debugPrint(
+        '[NhanVien] Chan mo modal Them/Sua vi danh sach vai tro dang rong.',
+      );
+      _thongBao('Không tải được danh sách vai trò. Vui lòng thử lại.');
+      return false;
+    }
+    return true;
+  }
+
+  /// Mở modal thêm nhân viên.
   Future<void> _moModalThem() async {
     if (_dangMoModal) return;
     _dangMoModal = true;
     try {
-      if (_vaiTroOptions.isEmpty) await _taiVaiTro();
-      if (!mounted) return;
+      debugPrint('[NhanVien] Bat dau mo modal THEM');
+      if (!await _dambaoVaiTroDaTai()) return;
 
-      if (_vaiTroOptions.isEmpty) {
-        _thongBao('Không tải được danh sách vai trò. Vui lòng thử lại.');
-        return;
-      }
-
+      debugPrint('[NhanVien] Chuan bi goi showAddNhanVienModal');
       final ok = await showAddNhanVienModal(
         context,
         vaiTroOptions: _vaiTroOptions,
       );
+      debugPrint('[NhanVien] showAddNhanVienModal tra ve: $ok');
       if (!mounted) return;
 
       if (ok == true) {
         _thongBao('Thêm nhân viên thành công');
+        reload();
+      }
+    } finally {
+      _dangMoModal = false;
+    }
+  }
+
+  /// Mở modal sửa nhân viên cho [item] đang chọn.
+  Future<void> _moModalSua(Map<String, dynamic> item) async {
+    if (_dangMoModal) return;
+    _dangMoModal = true;
+    try {
+      debugPrint('[NhanVien] Bat dau mo modal SUA cho item: $item');
+      if (!await _dambaoVaiTroDaTai()) return;
+
+      debugPrint('[NhanVien] Chuan bi goi showEditNhanVienModal');
+      final ok = await showEditNhanVienModal(
+        context,
+        nhanVien: item,
+        vaiTroOptions: _vaiTroOptions,
+      );
+      debugPrint('[NhanVien] showEditNhanVienModal tra ve: $ok');
+      if (!mounted) return;
+
+      if (ok == true) {
+        _thongBao('Cập nhật nhân viên thành công');
         reload();
       }
     } finally {
@@ -468,10 +523,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
             ),
             trailing: showEdit
                 ? TextButton(
-                    onPressed: () {
-                      // TODO: mở EditNhanVienModal thật với `item`; gọi
-                      // reload() sau khi sửa thành công.
-                    },
+                    onPressed: () => _moModalSua(item),
                     child: const Text('Sửa'),
                   )
                 : null,
