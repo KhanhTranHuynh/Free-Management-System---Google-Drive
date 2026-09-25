@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../components/main_scaffold.dart'; // đổi path nếu bạn để khác chỗ
 import '../pages/album_page.dart';
+import '../pages/album_detail_page.dart';
 import '../pages/nhat_ky_he_thong_page.dart';
 import '../pages/tong_quan_page.dart.dart';
 import '../pages/khach_hang_page.dart';
@@ -20,6 +21,7 @@ class AppRoutes {
   static const String nhanVien = '/nhan-vien';
   static const String khachHang = '/khach-hang';
   static const String album = '/album';
+  static const String albumDetail = '/album/detail';
   static const String log = '/log';
 
   /// Các route cần đăng nhập mới được vào.
@@ -28,13 +30,27 @@ class AppRoutes {
     nhanVien,
     khachHang,
     album,
+    albumDetail,
   };
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    final name = settings.name;
+    final name = settings.name ?? '';
+    final uri = Uri.tryParse(name) ?? Uri();
+    final segments = uri.pathSegments; // vd: ['album', 'detail', '123']
+
+    // Nếu path dạng /album/detail/:id thì tách id ra, dùng routeKey chuẩn
+    // để so khớp switch bên dưới (giống dynamic segment của React Router).
+    String routeKey = name;
+    String? idAlbum;
+    if (segments.length >= 3 &&
+        segments[0] == 'album' &&
+        segments[1] == 'detail') {
+      routeKey = albumDetail;
+      idAlbum = segments[2];
+    }
 
     Widget page;
-    switch (name) {
+    switch (routeKey) {
       case login:
         page = const LoginPage();
         break;
@@ -50,6 +66,9 @@ class AppRoutes {
       case album:
         page = const AlbumPage();
         break;
+      case albumDetail:
+        page = AlbumDetailPage(idAlbum: idAlbum ?? '');
+        break;
       case log:
         page = const NhatKyHeThongPage();
         break;
@@ -57,16 +76,14 @@ class AppRoutes {
         page = const NotFoundPage();
     }
 
-    if (protected.contains(name)) {
+    if (protected.contains(routeKey)) {
       page = AuthGuard(child: page);
     }
 
     // Hiện thanh điều hướng dưới cùng ở MỌI trang, trừ trang đăng nhập.
-    // Áp tập trung ở đây nên KHÔNG page nào (kể cả page mới thêm sau này)
-    // phải tự gọi Scaffold riêng cho phần này nữa.
-    if (name != login) {
+    if (routeKey != login) {
       page = ThanhDieuHuongWrapper(
-        activeKey: activeKeyChoRoute(name),
+        activeKey: activeKeyChoRoute(routeKey),
         child: page,
       );
     }
