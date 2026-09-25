@@ -53,7 +53,6 @@ String activeKeyChoRoute(String? routeName) {
     case '/nhan-vien':
       return 'nhan_vien';
     case '/khach-hang':
-    case '/danh-muc-khach-hang': // trang con của tab "Khách hàng"
       return 'khach_hang';
     case '/album':
       return 'album';

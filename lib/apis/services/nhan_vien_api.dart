@@ -2,13 +2,6 @@ import '../api_notify.dart';
 import '../api_request_manager.dart';
 import '../models/api_exception.dart';
 
-/// Gọi API nhân viên qua [ApiRequestManager].
-/// Trả về field "data" bên trong envelope: { du_lieu: [...], phan_trang: {...} }.
-/// Không map sang model riêng — view tự đọc field thô từ Map.
-///
-/// Path khớp route BE module tai-khoan:
-///   GET  /tai-khoan/danh-sach
-///   POST /tai-khoan/tao-moi
 class NhanVienApi {
   NhanVienApi(this._manager);
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../views/album/album_detail_view.dart';
+import '../views/album/detail/album_detail_view.dart';
 
 /// Page mỏng: chỉ dựng khung + ghép view (không chứa logic).
 class AlbumDetailPage extends StatelessWidget {

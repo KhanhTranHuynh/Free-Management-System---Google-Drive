@@ -118,30 +118,22 @@ class AlbumApi {
     return const <String, dynamic>{};
   }
 
-  /// Danh sách ảnh (tệp ảnh) của 1 album — PHÂN TRANG, dùng để tải khối
-  /// "Ảnh hiện có" trong sheet Sửa album theo từng trang (mặc định 24
-  /// ảnh/lần) thay vì nạp nguyên danh sách ảnh trong 1 lần, tránh
-  /// render/DOM quá nặng khi album có nhiều ảnh. Khớp
-  /// `useAnhAlbumPhanTrang` bên React, gọi `AlbumApi.danhSachTepAnh`
-  /// (`/album/danh-sach-tep-anh`).
-  /// Trả về { du_lieu, phan_trang } — cùng khuôn dạng với [danhSach].
   Future<Map<String, dynamic>> danhSachTepAnh({
     required String idAlbum,
     required int trang,
     int soLuong = 24,
+    Map<String, dynamic>? boLoc,
   }) async {
     final kq = await _manager.send(
       ApiRequest(
         apiUrl: '/album/danh-sach-tep-anh',
         method: 'POST',
-        // key gắn theo id_album + trang — khớp cách React đặt key
-        // `TepAnhDanhSach:${id_album}:${trang}` để mỗi trang là 1 request
-        // độc lập, tải trang 2 không bị huỷ bởi/không huỷ request trang 1.
         key: 'album-danh-sach-tep-anh-$idAlbum-$trang',
         data: {
           'id_album': idAlbum,
           'trang': trang,
           'so_luong': soLuong,
+          ...?boLoc,
         },
       ),
     );
@@ -161,9 +153,6 @@ class AlbumApi {
     return const <String, dynamic>{};
   }
 
-  /// Cập nhật thông tin album (không bao gồm mật khẩu — xem [datMatKhau]).
-  /// `xoaTepAnhIds` (nếu có) là các id ảnh hiện có cần xoá khi lưu, khớp
-  /// field `xoa_tep_anh_ids` trong payload React.
   Future<Map<String, dynamic>> capNhat(Map<String, dynamic> payload) async {
     final kq = await _manager.send(
       ApiRequest(
@@ -294,5 +283,35 @@ class AlbumApi {
     if (!kq.isSuccess) {
       throw kq.error ?? const ApiException(message: 'Xoá album thất bại.');
     }
+  }
+
+  Future<Map<String, dynamic>> chiTietHeader({required String idAlbum}) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/chi-tiet-header',
+        method: 'POST',
+        key: 'album-chi-tiet-header',
+        data: {'id_album': idAlbum},
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ??
+          const ApiException(message: 'Không tải được thông tin album.');
+    }
+
+    final raw = kq.payload;
+    if (raw is Map) {
+      final map = Map<String, dynamic>.from(raw);
+      final inner = map['data'];
+      if (inner is Map) {
+        final innerMap = Map<String, dynamic>.from(inner);
+        final item = innerMap['item'];
+        if (item is Map) return Map<String, dynamic>.from(item);
+        return innerMap;
+      }
+      return map;
+    }
+    return const <String, dynamic>{};
   }
 }
