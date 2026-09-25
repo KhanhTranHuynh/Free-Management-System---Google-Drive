@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../components/main_scaffold.dart'; // đổi path nếu bạn để khác chỗ
 import '../pages/album_page.dart';
 import '../pages/log_page.dart';
-import '../pages/danh_muc_khach_hang_page.dart';
 import '../pages/home_page.dart';
 import '../pages/khach_hang_page.dart';
 import '../pages/login_page.dart';
@@ -23,24 +22,9 @@ class AppRoutes {
   static const String album = '/album';
   static const String log = '/log';
 
-  // TODO: tab "Phân quyền" trong thanh điều hướng đang trỏ '/phan-quyen'
-  // nhưng chưa có page cho route này. Khi tạo xong
-  // lib/pages/phan_quyen_page.dart, làm 3 việc:
-  //   1. static const String phanQuyen = '/phan-quyen';
-  //   2. thêm `phanQuyen` vào `protected` bên dưới
-  //   3. thêm case trong onGenerateRoute, ví dụ (nếu cần chặn theo vai trò
-  //      giống QuyenRouteGuard đã có ở auth_guard.dart):
-  //        case phanQuyen:
-  //          page = QuyenRouteGuard(
-  //            menuKey: 'permission',
-  //            child: const PhanQuyenPage(),
-  //          );
-  //          break;
-
   /// Các route cần đăng nhập mới được vào.
   static const Set<String> protected = {
     home,
-    danhMucKhachHang,
     nhanVien,
     khachHang,
     album,
@@ -56,9 +40,6 @@ class AppRoutes {
         break;
       case home:
         page = const HomePage();
-        break;
-      case danhMucKhachHang:
-        page = const DanhMucKhachHangPage();
         break;
       case nhanVien:
         page = const NhanVienPage();
