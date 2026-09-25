@@ -60,7 +60,7 @@ class _LoginFormViewState extends State<LoginFormView> {
     // Ở đây chỉ còn lo điều hướng khi thành công.
     if (thanhCong) {
       Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.danhMucKhachHang,
+        AppRoutes.album,
         (route) => false,
       );
     }
