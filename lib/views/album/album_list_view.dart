@@ -370,8 +370,28 @@ class _AlbumListViewState extends State<AlbumListView> {
       ),
     );
     if (dongY != true) return;
-    // await _api.xoa(idAlbum: album['id_album'].toString());
-    unawaited(_taiLai());
+
+    try {
+      await _api.xoa(idAlbum: album['id_album'].toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Đã xoá album')));
+      unawaited(_taiLai());
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content:
+              Text(e.message.isNotEmpty ? e.message : 'Xoá album thất bại'),
+        ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Xoá album thất bại')));
+    }
   }
 
   List<AlbumCardAction> _buildCardActions(Map<String, dynamic> album) {

@@ -280,4 +280,19 @@ class AlbumApi {
       ),
     );
   }
+
+  Future<void> xoa({required String idAlbum}) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/album/xoa',
+        method: 'POST',
+        key: 'album-xoa',
+        data: {'id_album': idAlbum},
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Xoá album thất bại.');
+    }
+  }
 }
