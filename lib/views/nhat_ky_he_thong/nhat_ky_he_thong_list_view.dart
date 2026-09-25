@@ -11,6 +11,9 @@ import '../../apis/services/nhat_ky_he_thong_api.dart';
 /// Không đọc quyền AuthStore vì module này không có màn khác gate quyền
 /// (route "/nhat-ky-he-thong" tự chặn ở tầng khác nếu cần — khớp cách
 /// TongQuan.jsx không tự check coQuyen cho log).
+///
+/// TODO(tạm thời): các dòng `print(...)` trong _taiLai() là log debug để
+/// xác minh runtime thực tế nếu vẫn còn lỗi hiển thị. Xoá khi đã xác nhận ổn.
 class NhatKyHeThongListView extends StatefulWidget {
   const NhatKyHeThongListView({super.key});
 
@@ -76,21 +79,42 @@ class _NhatKyHeThongListViewState extends State<NhatKyHeThongListView> {
         soLuong: _soLuong,
         hanhDong: _filterHanhDong,
       );
-      if (!mounted || id != _requestId) return;
+
+      // ignore: avoid_print
+      print('[NhatKyHeThongListView] requestId=$id currentId=$_requestId '
+          'mounted=$mounted body=$body');
+
+      if (!mounted || id != _requestId) {
+        // ignore: avoid_print
+        print('[NhatKyHeThongListView] bỏ qua kết quả vì đã bị thay bởi '
+            'request mới hơn hoặc widget đã unmount');
+        return;
+      }
+
+      final items = _readList(body);
+      final phanTrang = _readPage(body);
+
+      // ignore: avoid_print
+      print('[NhatKyHeThongListView] items.length=${items.length} '
+          'phanTrang=$phanTrang');
 
       setState(() {
-        _items = _readList(body);
-        _phanTrang = _readPage(body);
+        _items = items;
+        _phanTrang = phanTrang;
         _isLoading = false;
       });
     } on ApiException catch (e) {
+      // ignore: avoid_print
+      print('[NhatKyHeThongListView] ApiException: ${e.message}');
       if (!mounted || id != _requestId) return;
       setState(() {
         _error = e.message;
         _items = [];
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[NhatKyHeThongListView] Unexpected error: $e\n$st');
       if (!mounted || id != _requestId) return;
       setState(() {
         _error = 'Đã có lỗi xảy ra. Vui lòng thử lại.';
