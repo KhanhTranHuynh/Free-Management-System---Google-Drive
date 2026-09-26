@@ -219,38 +219,39 @@ class _TongQuanViewState extends State<TongQuanView> {
       onRefresh: _taiDashboard,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         children: [
           Text(
             'Tổng quan',
             style: Theme.of(context)
                 .textTheme
-                .headlineSmall
+                .titleLarge
                 ?.copyWith(fontWeight: FontWeight.w600),
           ),
+          const SizedBox(height: 10),
           if (_error != null) ...[
             _ErrorBanner(message: _error!),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
           ],
           _AlbumDangXuLyCard(
             items: _albumDangXuLy,
             isLoading: _isLoading,
             onXemTatCa: () => _xemTatCa('/album'),
             onXemAlbum: (id) =>
-                Navigator.of(context).pushNamed('/album/detail', arguments: id),
+                Navigator.of(context).pushNamed('/album/detail/$id'),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _NhatKyHeThongCard(
             items: _nhatKyHeThong,
             isLoading: _isLoading,
             onXemTatCa: () => _xemTatCa('/log'),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _TienDoAlbumCard(
             soLuongTheoTrangThai: _soLuongTheoTrangThai,
             isLoading: _isLoading,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _PhanCongCard(
             items: _lichPhanCong,
             isLoading: _isLoading,
@@ -282,13 +283,18 @@ class _CardHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: theme.textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style:
+              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         if (onViewAll != null)
           TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             onPressed: onViewAll,
-            child: const Text('Xem tất cả →'),
+            child: const Text('Xem tất cả →', style: TextStyle(fontSize: 13)),
           ),
       ],
     );
@@ -302,11 +308,11 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
         child: Text(
           text,
-          style: TextStyle(color: Theme.of(context).hintColor),
+          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
         ),
       ),
     );
@@ -320,13 +326,16 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF1F2),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFFECDD3)),
       ),
-      child: Text(message, style: const TextStyle(color: Color(0xFFE11D48))),
+      child: Text(
+        message,
+        style: const TextStyle(color: Color(0xFFE11D48), fontSize: 13),
+      ),
     );
   }
 }
@@ -350,13 +359,14 @@ class _AlbumDangXuLyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _CardHeader(title: 'Album đang xử lý', onViewAll: onXemTatCa),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             if (items.isEmpty && !isLoading)
               const _EmptyState(text: 'Không có album đang xử lý')
             else
@@ -387,7 +397,7 @@ class _AlbumTile extends StatelessWidget {
     final highlightColor = daXongHet ? const Color(0xFF059669) : null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -397,11 +407,14 @@ class _AlbumTile extends StatelessWidget {
               children: [
                 Text(
                   album['ten_album']?.toString() ?? '--',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   'Ngày tạo: ${_formatDate(album['created_at']?.toString())}',
                   style: TextStyle(
@@ -409,7 +422,7 @@ class _AlbumTile extends StatelessWidget {
                     color: Theme.of(context).hintColor,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   'YC chỉnh sửa đã chốt: $dangCho · '
                   'Số lần miễn phí: $soLanMienPhi',
@@ -418,7 +431,15 @@ class _AlbumTile extends StatelessWidget {
               ],
             ),
           ),
-          TextButton(onPressed: onTap, child: const Text('Xem')),
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: onTap,
+            child: const Text('Xem', style: TextStyle(fontSize: 13)),
+          ),
         ],
       ),
     );
@@ -442,13 +463,14 @@ class _NhatKyHeThongCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _CardHeader(title: 'Nhật ký hệ thống', onViewAll: onXemTatCa),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             if (items.isEmpty && !isLoading)
               const _EmptyState(text: 'Không có log nào')
             else
@@ -481,11 +503,11 @@ class _LogTile extends StatelessWidget {
           Column(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
                 alignment: Alignment.center,
-                child: Text(icon, style: TextStyle(color: fg, fontSize: 14)),
+                child: Text(icon, style: TextStyle(color: fg, fontSize: 12)),
               ),
               if (!isLast)
                 Expanded(
@@ -493,10 +515,10 @@ class _LogTile extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 16, top: 4),
+              padding: const EdgeInsets.only(bottom: 10, top: 2),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -554,13 +576,14 @@ class _TienDoAlbumCard extends StatelessWidget {
     final tongSo = donutData.fold<double>(0, (sum, d) => sum + d.value);
 
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _CardHeader(title: 'Tiến độ xử lý album'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -570,12 +593,15 @@ class _TienDoAlbumCard extends StatelessWidget {
                       .toList(),
                   total: tongSo,
                 ),
-                const SizedBox(width: 24),
+                const SizedBox(width: 16),
                 Expanded(
                   child: donutData.isEmpty && !isLoading
                       ? Text(
                           'Chưa có dữ liệu',
-                          style: TextStyle(color: Theme.of(context).hintColor),
+                          style: TextStyle(
+                            color: Theme.of(context).hintColor,
+                            fontSize: 13,
+                          ),
                         )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,28 +643,36 @@ class _DonutLegendRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
           Container(
-            width: 10,
-            height: 10,
+            width: 9,
+            height: 9,
             decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Expanded(
-            child: Text(label,
-                style: TextStyle(color: Theme.of(context).hintColor)),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Theme.of(context).hintColor,
+                fontSize: 13,
+              ),
+            ),
           ),
-          Text('$value', style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(width: 8),
+          Text(
+            '$value',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          const SizedBox(width: 6),
           SizedBox(
-            width: 36,
+            width: 32,
             child: Text(
               '$percent%',
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: Theme.of(context).hintColor,
               ),
             ),
@@ -660,7 +694,7 @@ class _DonutChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = 140.0;
+    const size = 108.0;
     return SizedBox(
       width: size,
       height: size,
@@ -671,7 +705,7 @@ class _DonutChart extends StatelessWidget {
             size: const Size(size, size),
             painter: _DonutChartPainter(
               slices: slices,
-              strokeWidth: 16,
+              strokeWidth: 13,
             ),
           ),
           Column(
@@ -680,14 +714,14 @@ class _DonutChart extends StatelessWidget {
               Text(
                 total.toInt().toString(),
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
                 'Album',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   color: Theme.of(context).hintColor,
                 ),
               ),
@@ -769,13 +803,14 @@ class _PhanCongCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _CardHeader(title: 'Phân công gần đây', onViewAll: onXemTatCa),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             if (items.isEmpty && !isLoading)
               const _EmptyState(text: 'Chưa có phân công nào')
             else
@@ -801,23 +836,23 @@ class _PhanCongTile extends StatelessWidget {
     final laNguoiBaoCao = item['la_nguoi_bao_cao'] == true;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 20,
+            radius: 17,
             backgroundColor: _avatarPalette[idx],
             child: Text(
               _layChuCaiDau(item['nhan_vien_ho_ten']?.toString()),
               style: TextStyle(
                 color: _avatarPaletteFg[idx],
                 fontWeight: FontWeight.w600,
-                fontSize: 12,
+                fontSize: 11,
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -825,6 +860,7 @@ class _PhanCongTile extends StatelessWidget {
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 6,
+                  runSpacing: 2,
                   children: [
                     Text.rich(
                       TextSpan(
@@ -847,7 +883,7 @@ class _PhanCongTile extends StatelessWidget {
                     if (laNguoiBaoCao)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                            horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(999),
@@ -864,7 +900,7 @@ class _PhanCongTile extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   '${_formatNgayGio(item['thoi_gian_bat_dau']?.toString())}'
                   ' - '
