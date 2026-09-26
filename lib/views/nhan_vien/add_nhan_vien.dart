@@ -5,30 +5,16 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/nhan_vien_api.dart';
 import '../../components/app_modal.dart';
 import '../../components/app_text_input.dart';
+import '../../utils/mau_sac_util.dart';
 
 // TODO: chuyển sang configs/ (tương đương config.MIN_PASSWORD_LENGTH,
-// config.MAX_PASSWORD_LENGTH, config.MAU_SAC_MAC_DINH bên bản React).
+// config.MAX_PASSWORD_LENGTH bên bản React). Riêng màu mặc định giờ lấy
+// từ util dùng chung (kMauSacMacDinh) thay vì khai báo lại ở đây.
 const int kMinPasswordLength = 6;
 const int kMaxPasswordLength = 50;
-const String kMauSacMacDinh = '#3B82F6';
-
-const List<String> _mauSacGoiY = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#8B5CF6',
-  '#EC4899',
-  '#14B8A6',
-  '#64748B',
-];
 
 final RegExp _phoneRegex = RegExp(r'^0\d{9}$');
 final RegExp _emailRegex = RegExp(r'^\S+@\S+\.\S+$');
-final RegExp _hexRegex = RegExp(r'^#[0-9A-Fa-f]{6}$');
-
-Color _hexToColor(String hex) =>
-    Color(int.parse('FF${hex.substring(1)}', radix: 16));
 
 /// Mở modal "Thêm nhân viên".
 /// Trả về `true` nếu tạo thành công (View danh sách gọi `reload()`),
@@ -148,7 +134,7 @@ class _AddNhanVienController extends ChangeNotifier {
 
     if (vaiTro.isEmpty) errors['vaiTro'] = 'Vui lòng chọn ít nhất một vai trò';
 
-    if (mauSac.isNotEmpty && !_hexRegex.hasMatch(mauSac.trim())) {
+    if (mauSac.isNotEmpty && !isHexMauSacHopLe(mauSac)) {
       errors['mauSac'] = 'Mã màu không hợp lệ';
     }
 
@@ -398,32 +384,14 @@ class _AddNhanVienBody extends StatelessWidget {
       children: [
         Text('Màu hiển thị trên lịch', style: theme.textTheme.labelLarge),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final hex in _mauSacGoiY)
-              GestureDetector(
-                onTap: c.isSaving ? null : () => c.setMauSac(hex),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: _hexToColor(hex),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: c.mauSac.toUpperCase() == hex
-                          ? theme.colorScheme.onSurface
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                  child: c.mauSac.toUpperCase() == hex
-                      ? const Icon(Icons.check, size: 18, color: Colors.white)
-                      : null,
-                ),
-              ),
-          ],
+        // Bảng màu preset + nút "+" mở bánh xe màu tự do — dùng chung
+        // đúng mẫu UI với modal Sửa thông tin cá nhân (sua_thong_tin_modal.dart)
+        // qua MauSacGoiYPicker.
+        MauSacGoiYPicker(
+          mauSacDangChon: c.mauSac,
+          onChon: c.isSaving ? (_) {} : c.setMauSac,
+          choPhepTuyChinh: true,
+          swatchSize: 34,
         ),
         if (c.errors['mauSac'] != null)
           Padding(

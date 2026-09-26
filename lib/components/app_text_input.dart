@@ -17,15 +17,11 @@ enum AppTextInputType {
 /// Input dùng chung cho toàn app — bản Dart hoá của component `Textinput`
 /// bên React.
 ///
-/// Khác biệt có chủ đích so với bản React:
-/// - Label dùng kiểu **nổi** (floating label) của Material, qua
-///   `InputDecoration.labelText` + `OutlineInputBorder` — giữ đúng theo mẫu
-///   Dart đang dùng trong app (xem `_text()` ở `add_nhan_vien.dart`), thay vì
-///   `<label>` tĩnh nằm phía trên input như bản React.
-/// - KHÔNG tắt `autocorrect`/`enableSuggestions` cho loại `text` (dùng cho
-///   các trường có thể chứa tiếng Việt như "Họ tên", "Tìm kiếm"...), vì 2 cờ
-///   này khi tắt dễ gây mất chữ/mất dấu khi gõ tiếng Việt nhanh trên Android
-///   (Gboard). Chỉ tắt cho các loại chắc chắn không cần gõ dấu (email, số).
+/// Bản này giữ nguyên toàn bộ logic (validate, format tiền, format số điện
+/// thoại, xử lý IME tiếng Việt...) của `AppTextInput`, chỉ thay phần UI
+/// (`InputDecoration`) bằng kiểu bo tròn, có nền (filled) và đổi màu viền
+/// theo trạng thái — lấy cảm hứng từ `AppTextField`, để trông hiện đại và
+/// nhất quán hơn giữa các trạng thái enabled / focus / error / disabled.
 class AppTextInput extends StatefulWidget {
   const AppTextInput({
     super.key,
@@ -66,7 +62,10 @@ class AppTextInput extends StatefulWidget {
   final bool enabled;
   final bool readOnly;
   final bool autofocus;
-  final Widget? prefixIcon;
+
+  /// Nhận cả `Widget` (icon tuỳ biến, badge...) lẫn `IconData` (dùng nhanh
+  /// như bên `AppTextField`) — xem `_resolvePrefixIcon()`.
+  final Object? prefixIcon;
 
   /// Lỗi áp từ bên ngoài (vd lỗi server trả về) — luôn được ưu tiên hiển
   /// thị trước lỗi tự validate nội bộ.
@@ -276,13 +275,42 @@ class _AppTextInputState extends State<AppTextInput> {
     }
   }
 
+  /// Cho phép truyền `prefixIcon` là `IconData` (gọn, giống `AppTextField`)
+  /// hoặc `Widget` bất kỳ (icon tuỳ biến, badge...). Ném lỗi rõ ràng nếu
+  /// truyền sai kiểu để dễ phát hiện lúc code thay vì lỗi mờ lúc runtime.
+  Widget? _resolvePrefixIcon(BuildContext context, Color color) {
+    final icon = widget.prefixIcon;
+    if (icon == null) return null;
+    if (icon is IconData) return Icon(icon, color: color);
+    if (icon is Widget) return icon;
+    throw ArgumentError(
+      'prefixIcon phải là IconData hoặc Widget, nhận: ${icon.runtimeType}',
+    );
+  }
+
+  OutlineInputBorder _border(Color color, {double width = 1.4}) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: color, width: width),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final shownError = widget.errorText ?? _internalError;
+    final hasError = shownError != null && shownError.isNotEmpty;
 
     // Chỉ loại `text` (Họ tên, ghi chú, tìm kiếm...) mới cần gõ tiếng Việt
     // có dấu -> giữ autocorrect/enableSuggestions bật để tránh bug mất chữ.
     final isVietnameseCapable = widget.type == AppTextInputType.text;
+
+    final iconColor = !widget.enabled
+        ? scheme.onSurface.withOpacity(0.38)
+        : hasError
+            ? scheme.error
+            : scheme.onSurfaceVariant;
 
     return TextField(
       controller: _controller,
@@ -299,20 +327,42 @@ class _AppTextInputState extends State<AppTextInput> {
       enableSuggestions: isVietnameseCapable,
       onChanged: _handleChanged,
       onSubmitted: widget.onSubmitted,
+      style: theme.textTheme.bodyLarge,
+      cursorColor: scheme.primary,
       decoration: InputDecoration(
         labelText: widget.required ? '${widget.label} *' : widget.label,
         hintText: widget.hint,
         helperText: widget.helperText,
         errorText: shownError,
-        border: const OutlineInputBorder(),
+        errorMaxLines: 2,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        filled: true,
+        fillColor: !widget.enabled
+            ? scheme.onSurface.withOpacity(0.04)
+            : scheme.surfaceContainerHighest.withOpacity(0.35),
         counterText: widget.maxLength == null ? null : '',
-        prefixIcon: widget.prefixIcon,
+        prefixIcon: _resolvePrefixIcon(context, iconColor),
         suffixIcon: _isPassword
             ? IconButton(
-                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: iconColor,
+                ),
                 onPressed: () => setState(() => _obscure = !_obscure),
               )
             : null,
+        border: _border(scheme.outlineVariant),
+        enabledBorder: _border(scheme.outlineVariant),
+        disabledBorder: _border(scheme.outlineVariant.withOpacity(0.5)),
+        focusedBorder: _border(scheme.primary, width: 2),
+        errorBorder: _border(scheme.error),
+        focusedErrorBorder: _border(scheme.error, width: 2),
       ),
     );
   }

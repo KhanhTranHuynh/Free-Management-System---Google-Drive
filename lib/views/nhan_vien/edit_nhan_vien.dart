@@ -5,23 +5,7 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/nhan_vien_api.dart';
 import '../../components/app_modal.dart';
 import '../../components/app_text_input.dart';
-import 'add_nhan_vien.dart' show kMauSacMacDinh;
-
-const List<String> _mauSacGoiYSua = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#8B5CF6',
-  '#EC4899',
-  '#14B8A6',
-  '#64748B',
-];
-
-final RegExp _hexRegexSua = RegExp(r'^#[0-9A-Fa-f]{6}$');
-
-Color _hexToColorSua(String hex) =>
-    Color(int.parse('FF${hex.substring(1)}', radix: 16));
+import '../../utils/mau_sac_util.dart';
 
 /// Chuẩn hoá dữ liệu nhân viên (Map thô từ API/list) về đúng shape form sửa
 /// — tương đương `mapNhanVienToForm` bên bản React.
@@ -121,16 +105,27 @@ Future<bool?> showEditNhanVienModal(
 // CONTROLLER
 // ============================================================
 class _EditNhanVienController extends ChangeNotifier {
-  _EditNhanVienController(this._api, {required this.nhanVien})
-      : hoTen = TextEditingController(
-            text: _EditFormData.fromItem(nhanVien).hoTen) {
+  /// Factory tính `_EditFormData.fromItem(nhanVien)` đúng MỘT lần rồi truyền
+  /// vào constructor thật (`._`) — bản trước tính 2 lần (một ở initializer
+  /// list cho `hoTen`, một ở body cho các field còn lại).
+  factory _EditNhanVienController(
+    NhanVienApi api, {
+    required Map<String, dynamic> nhanVien,
+  }) {
     final form = _EditFormData.fromItem(nhanVien);
-    soDienThoai = form.soDienThoai;
-    email = form.email;
-    vaiTro = List<String>.from(form.vaiTro);
-    trangThai = form.trangThai;
-    mauSac = form.mauSac;
+    return _EditNhanVienController._(api, nhanVien: nhanVien, form: form);
   }
+
+  _EditNhanVienController._(
+    this._api, {
+    required this.nhanVien,
+    required _EditFormData form,
+  })  : hoTen = TextEditingController(text: form.hoTen),
+        soDienThoai = form.soDienThoai,
+        email = form.email,
+        vaiTro = List<String>.from(form.vaiTro),
+        trangThai = form.trangThai,
+        mauSac = form.mauSac;
 
   final NhanVienApi _api;
   final Map<String, dynamic> nhanVien;
@@ -140,12 +135,12 @@ class _EditNhanVienController extends ChangeNotifier {
 
   // Số điện thoại / email chỉ hiển thị, không cho sửa (giống readonly+disabled
   // bên bản React) — không cần TextEditingController riêng.
-  late String soDienThoai;
-  late String email;
+  final String soDienThoai;
+  final String email;
 
-  late List<String> vaiTro;
-  late bool trangThai;
-  late String mauSac;
+  List<String> vaiTro;
+  bool trangThai;
+  String mauSac;
 
   bool isSaving = false;
   String? formError;
@@ -169,6 +164,8 @@ class _EditNhanVienController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Nhận hex từ `MauSacGoiYPicker` (preset hoặc bánh xe tự do) — cùng một
+  /// điểm vào duy nhất, đồng bộ với modal Thêm nhân viên / Sửa thông tin.
   void setMauSac(String hex) {
     mauSac = hex;
     errors.remove('mauSac');
@@ -181,7 +178,7 @@ class _EditNhanVienController extends ChangeNotifier {
 
     if (ten.isEmpty) errors['hoTen'] = 'Vui lòng nhập họ tên';
     if (vaiTro.isEmpty) errors['vaiTro'] = 'Vui lòng chọn ít nhất một vai trò';
-    if (mauSac.isNotEmpty && !_hexRegexSua.hasMatch(mauSac.trim())) {
+    if (mauSac.isNotEmpty && !isHexMauSacHopLe(mauSac.trim())) {
       errors['mauSac'] = 'Mã màu không hợp lệ';
     }
 
@@ -351,32 +348,14 @@ class _EditNhanVienBody extends StatelessWidget {
       children: [
         Text('Màu hiển thị trên lịch', style: theme.textTheme.labelLarge),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final hex in _mauSacGoiYSua)
-              GestureDetector(
-                onTap: c.isSaving ? null : () => c.setMauSac(hex),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: _hexToColorSua(hex),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: c.mauSac.toUpperCase() == hex
-                          ? theme.colorScheme.onSurface
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                  child: c.mauSac.toUpperCase() == hex
-                      ? const Icon(Icons.check, size: 18, color: Colors.white)
-                      : null,
-                ),
-              ),
-          ],
+        // Đồng bộ với modal Thêm nhân viên / Sửa thông tin cá nhân: dùng
+        // chung `MauSacGoiYPicker` (bảng preset + nút "+" mở bánh xe màu
+        // tự do) thay vì tự vẽ lại bảng màu riêng như bản trước.
+        MauSacGoiYPicker(
+          mauSacDangChon: c.mauSac,
+          onChon: c.isSaving ? (_) {} : c.setMauSac,
+          choPhepTuyChinh: true,
+          swatchSize: 34,
         ),
         if (c.errors['mauSac'] != null)
           Padding(

@@ -819,6 +819,12 @@ class _NhanVienCard extends StatelessWidget {
     final trangThai = item['trang_thai'] == true;
     final avatarIdx = avatarIndex(hoTen);
 
+    final avatarBg = parseHexColor(
+      item['mau_sac']?.toString(),
+      fallback: avatarPalette[avatarIdx],
+    );
+    final avatarFg = contrastFg(avatarBg);
+
     // `vai_tro`/`ten_vai_tro` có thể là List (nhiều vai trò) hoặc String —
     // ghép cặp theo đúng thứ tự BE trả về để lấy tên hiển thị cho từng mã.
     final maVaiTroRaw = item['vai_tro'];
@@ -860,11 +866,11 @@ class _NhanVienCard extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 22,
-                      backgroundColor: avatarPalette[avatarIdx],
+                      backgroundColor: avatarBg,
                       child: Text(
                         layChuCaiDau(hoTen),
                         style: TextStyle(
-                          color: avatarPaletteFg[avatarIdx],
+                          color: avatarFg,
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
                         ),

@@ -4,7 +4,7 @@ import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/ca_nhan_api.dart';
 import '../../components/app_modal.dart';
-import '../../components/app_text_field.dart';
+import '../../components/app_text_input.dart';
 
 /// Modal đổi mật khẩu — hành động TỰ THÂN, khớp DoiMatKhau.jsx bên React
 /// (POST /tai-khoan/doi-mat-khau, không có field id nào — BE lấy tài
@@ -242,12 +242,17 @@ class _DoiMatKhauForm extends StatelessWidget {
             const SizedBox(height: 20),
             const Text('MẬT KHẨU HIỆN TẠI', style: _tieuDeNho),
             const SizedBox(height: 8),
-            AppTextField(
+            // Trước dùng AppTextField (obscureText: true, tự set icon
+            // ẩn/hiện) -> chuyển sang AppTextInput với
+            // `type: AppTextInputType.password`, đã có sẵn đúng hành vi
+            // đó (obscure mặc định + icon toggle) nên không cần khai báo
+            // thêm gì cho việc ẩn/hiện mật khẩu.
+            AppTextInput(
               controller: controller.matKhauCuCtrl,
               label: 'Mật khẩu hiện tại',
-              hintText: 'Nhập mật khẩu hiện tại',
+              type: AppTextInputType.password,
+              hint: 'Nhập mật khẩu hiện tại',
               prefixIcon: Icons.lock_outline,
-              obscureText: true,
               errorText: controller.loiMatKhauCu,
             ),
             const SizedBox(height: 20),
@@ -255,25 +260,27 @@ class _DoiMatKhauForm extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('MẬT KHẨU MỚI', style: _tieuDeNho),
             const SizedBox(height: 8),
-            AppTextField(
+            AppTextInput(
               controller: controller.matKhauMoiCtrl,
               label: 'Mật khẩu mới',
-              hintText: 'Tối thiểu $_doDaiMin ký tự',
+              type: AppTextInputType.password,
+              hint: 'Tối thiểu $_doDaiMin ký tự',
               prefixIcon: Icons.key_outlined,
-              obscureText: true,
               errorText: controller.loiMatKhauMoi,
+              minPasswordLength: _doDaiMin,
+              maxPasswordLength: _doDaiMax,
             ),
             if (hienThiKiemTra) ...[
               const SizedBox(height: 8),
               _ThanhDoManh(doManh: doManh),
             ],
             const SizedBox(height: 12),
-            AppTextField(
+            AppTextInput(
               controller: controller.xacNhanCtrl,
               label: 'Xác nhận mật khẩu mới',
-              hintText: 'Nhập lại mật khẩu mới',
+              type: AppTextInputType.password,
+              hint: 'Nhập lại mật khẩu mới',
               prefixIcon: Icons.key_outlined,
-              obscureText: true,
               errorText: controller.loiXacNhan,
             ),
             if (hienThiChecklist) ...[

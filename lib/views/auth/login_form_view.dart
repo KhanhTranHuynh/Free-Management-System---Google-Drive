@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../components/app_button.dart';
-import '../../components/app_text_field.dart';
+import '../../components/app_text_input.dart';
 import '../../routes/app_routes.dart';
 import '../../stores/auth_store.dart';
 import '../../utils/validators.dart';
@@ -74,21 +74,29 @@ class _LoginFormViewState extends State<LoginFormView> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppTextField(
+        AppTextInput(
           controller: _soDienThoaiController,
           label: 'Số điện thoại',
-          hintText: '09xxxxxxxx',
+          type: AppTextInputType.phone,
+          hint: '09xxxxxxxx',
           prefixIcon: Icons.phone_outlined,
-          keyboardType: TextInputType.phone,
           errorText: _loiSoDienThoai,
+          onChanged: (_) {
+            // Bỏ lỗi ngay khi người dùng gõ lại, giống hành vi cũ (lỗi chỉ
+            // còn hiện đến khi _validate() chạy lại lúc bấm Đăng nhập).
+            if (_loiSoDienThoai != null) setState(() => _loiSoDienThoai = null);
+          },
         ),
         const SizedBox(height: 16),
-        AppTextField(
+        AppTextInput(
           controller: _matKhauController,
           label: 'Mật khẩu',
+          type: AppTextInputType.password,
           prefixIcon: Icons.lock_outline,
-          obscureText: true,
           errorText: _loiMatKhau,
+          onChanged: (_) {
+            if (_loiMatKhau != null) setState(() => _loiMatKhau = null);
+          },
         ),
         const SizedBox(height: 24),
         AppButton(

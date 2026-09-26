@@ -43,3 +43,30 @@ String layChuCaiDau(String? hoTen) {
   final lastTwo = words.length <= 2 ? words : words.sublist(words.length - 2);
   return lastTwo.map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase();
 }
+
+// ============================================================
+// Màu tuỳ chỉnh theo dữ liệu BE (vd field `mau_sac` dạng "#cc0022").
+// Dùng khi BE đã gán sẵn màu cho từng bản ghi (nhân viên, vai trò...)
+// thay vì suy màu từ hash tên như ở trên. Tách riêng khỏi avatarPalette
+// vì đây không phải bảng màu cố định mà là parse trực tiếp từ dữ liệu.
+// ============================================================
+
+/// Parse chuỗi hex dạng "#cc0022" / "cc0022" (có thể kèm alpha 8 ký tự)
+/// thành [Color]. Trả về [fallback] nếu [hex] rỗng, null hoặc sai định dạng
+/// — luôn gọi được an toàn kể cả khi BE trả về giá trị bẩn.
+Color parseHexColor(String? hex, {required Color fallback}) {
+  if (hex == null || hex.trim().isEmpty) return fallback;
+  var s = hex.trim();
+  if (s.startsWith('#')) s = s.substring(1);
+  if (s.length == 6) s = 'FF$s'; // thêm alpha nếu BE chỉ gửi RGB
+  if (s.length != 8) return fallback;
+  final value = int.tryParse(s, radix: 16);
+  if (value == null) return fallback;
+  return Color(value);
+}
+
+/// Chọn màu chữ (đen/trắng) tương phản tốt với [bg] theo độ sáng tương đối,
+/// để chữ luôn đọc được dù [bg] là màu tuỳ ý do BE gán (sáng hoặc tối).
+Color contrastFg(Color bg) {
+  return bg.computeLuminance() > 0.55 ? Colors.black87 : Colors.white;
+}
