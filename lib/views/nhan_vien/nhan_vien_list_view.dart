@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../apis/api_request_manager.dart';
@@ -8,13 +9,91 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/nhan_vien_api.dart';
 import '../../apis/services/vai_tro_api.dart';
 import '../../stores/auth_store.dart';
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật của app_colors.dart
+// trong dự án.
+import '../../configs/app_colors.dart';
+import '../../utils/avatar_util.dart';
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật của file chứa
+// showAppModal/AppModalType (app_modal.dart) trong dự án.
+import '../../components/app_modal.dart';
+import '../../components/o_tim_kiem.dart';
+import '../../components/chip_loc.dart';
 import 'add_nhan_vien.dart';
 import 'edit_nhan_vien.dart';
+
+// ============================================================
+// 1 DÒNG "SẮP XẾP THEO" trong modal Lọc & sắp xếp — bấm để chọn cột sắp
+// xếp; nếu đang chọn cột này rồi thì hiện icon mũi tên theo chiều hiện
+// tại (tăng dần ↑ / giảm dần ↓). Bấm lại cột đang chọn sẽ đảo chiều (xử
+// lý ở _onSortColumnTap, widget này chỉ hiển thị).
+// ============================================================
+class _DongSapXep extends StatelessWidget {
+  const _DongSapXep({
+    required this.label,
+    required this.dangChon,
+    required this.tangDan,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool dangChon;
+  final bool tangDan;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(
+              dangChon
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 18,
+              color:
+                  dangChon ? AppColors.primary : colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: dangChon ? FontWeight.w700 : FontWeight.w500,
+                  color: dangChon
+                      ? colorScheme.onSurface
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (dangChon)
+              Icon(
+                tangDan
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 16,
+                color: AppColors.primary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Danh sách nhân viên. Toàn bộ state (search/filter/sort/phân trang) +
 /// gọi API nằm cục bộ trong View này — AuthStore chỉ được đọc để lấy quyền
 /// (NHAN_VIEN: xem/thêm/sửa) và id_studio_local, không có store riêng cho
 /// màn hình này. Dữ liệu để dạng Map thô, đọc field trực tiếp khi cần.
+///
+/// UI dạng card theo mẫu thiết kế mới. Có 2 chiều lọc (vai trò + trạng
+/// thái) — mẫu gốc chỉ vẽ 1 hàng chip theo vai trò nên hàng trạng thái
+/// được thêm thêm bên dưới, nhỏ và nhạt hơn để không lấn vai trò chính.
 class NhanVienListView extends StatefulWidget {
   const NhanVienListView({super.key});
 
@@ -30,6 +109,13 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     ('ho_ten', 'Tên nhân viên'),
     ('so_dien_thoai', 'Số điện thoại'),
     ('email', 'Email'),
+  ];
+
+  /// Chip lọc trạng thái — cố định 3 lựa chọn, không cần nạp từ API.
+  static const List<(bool?, String, Color?)> _trangThaiOptions = [
+    (null, 'Tất cả trạng thái', null),
+    (true, 'Hoạt động', Color(0xFF16A34A)),
+    (false, 'Khóa', Color(0xFF9CA3AF)),
   ];
 
   final _api = NhanVienApi(ApiRequestManager.instance);
@@ -52,14 +138,27 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   String? _sortColumn; // vd "ho_ten"
   String _sortType = 'ASC'; // "ASC" | "DESC"
 
-  // ----- options filter "Vai trò" (nạp 1 lần, dùng lại cho modal thêm/sửa)
+  // ----- options filter "Vai trò" (nạp 1 lần, dùng lại cho modal thêm/sửa
+  // và cho hàng chip lọc theo vai trò).
   // Lọc bỏ ngay từ nguồn các bản ghi thiếu ma_vai_tro để không bao giờ
-  // sinh ra 1 DropdownMenuItem trùng value:null với mục "Tất cả vai trò".
+  // sinh ra 1 chip trùng giá trị null với chip "Tất cả".
   List<Map<String, dynamic>> _vaiTroOptions = [];
   bool _vaiTroLoading = false;
   Future<void>? _vaiTroFuture; // chống gọi trùng khi đang tải
 
   bool _dangMoModal = false; // chặn bấm "Thêm"/"Sửa" nhiều lần cùng lúc
+
+  // Số liệu cho header phụ đề & các chip lọc — chỉ chắc chắn đúng khi lấy
+  // từ lần tải KHÔNG lọc gì cả (cả vai trò lẫn trạng thái đều null), vì
+  // lúc đó trang dữ liệu đầu mới bao quát đủ để suy luận. Khi đang lọc,
+  // các biến này giữ nguyên giá trị đã cache từ lần tải "Tất cả" gần nhất.
+  // TODO: nếu BE có endpoint/field đếm tổng theo vai trò & trạng thái
+  // (giống so_luong_theo_hanh_dong bên Nhật ký hệ thống), nên đọc trực
+  // tiếp từ đó — cách suy ra ở dưới chỉ đúng khi tổng số nhân viên không
+  // vượt quá kích thước 1 trang (_soLuong).
+  int _tongSoTatCa = 0;
+  int _soLuongHoatDong = 0;
+  Map<String, int> _demTheoVaiTro = {};
 
   int get _tongSo => (_phanTrang['tong_so'] as num?)?.toInt() ?? 0;
   int get _tongTrang => _tongSo <= 0 ? 1 : (_tongSo / _soLuong).ceil();
@@ -117,8 +216,8 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       );
       if (!mounted) return;
       setState(() {
-        // Bỏ các bản ghi không có ma_vai_tro để tránh sinh
-        // DropdownMenuItem(value: null) trùng với mục "Tất cả vai trò".
+        // Bỏ các bản ghi không có ma_vai_tro để tránh sinh chip trùng
+        // giá trị null với chip "Tất cả".
         _vaiTroOptions =
             _readList(body).where((vt) => vt['ma_vai_tro'] != null).toList();
         _vaiTroLoading = false;
@@ -147,6 +246,30 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     }
   }
 
+  /// Cập nhật số liệu cho header phụ đề & các chip lọc, chỉ khi request
+  /// vừa rồi KHÔNG lọc gì cả (xem giải thích ở khai báo các biến trên).
+  void _capNhatDemChip(
+      Map<String, dynamic> body, List<Map<String, dynamic>> itemsTrangDau) {
+    if (_filterVaiTro != null || _filterTrangThai != null) return;
+
+    _tongSoTatCa =
+        (_readPage(body)['tong_so'] as num?)?.toInt() ?? itemsTrangDau.length;
+    _soLuongHoatDong =
+        itemsTrangDau.where((item) => item['trang_thai'] == true).length;
+
+    final dem = <String, int>{};
+    for (final item in itemsTrangDau) {
+      final raw = item['vai_tro'];
+      final codes = raw is List
+          ? raw.map((e) => e.toString())
+          : (raw == null ? const <String>[] : [raw.toString()]);
+      for (final code in codes) {
+        dem[code] = (dem[code] ?? 0) + 1;
+      }
+    }
+    _demTheoVaiTro = dem;
+  }
+
   Future<void> _taiLai() async {
     final id = ++_requestId;
 
@@ -166,8 +289,11 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       );
       if (!mounted || id != _requestId) return;
 
+      final items = _readList(body);
+      _capNhatDemChip(body, items);
+
       setState(() {
-        _items = _readList(body);
+        _items = items;
         _phanTrang = _readPage(body);
         _isLoading = false;
       });
@@ -271,7 +397,142 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     });
   }
 
+  /// Bấm nút "..." kế bên ô tìm kiếm — mở modal Lọc & sắp xếp.
+  Future<void> _moModalLocSapXep() async {
+    FocusScope.of(context).unfocus();
+    await showAppModal(
+      context,
+      title: 'Lọc & sắp xếp',
+      type: AppModalType.bottomSheet,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          void chon(VoidCallback thayDoi) {
+            thayDoi();
+            setModalState(() {});
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Sắp xếp theo',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              const SizedBox(height: 8),
+              for (final col in _cotSapXep)
+                _DongSapXep(
+                  label: col.$2,
+                  dangChon: _sortColumn == col.$1,
+                  tangDan: _sortType == 'ASC',
+                  onTap: () => chon(() => _onSortColumnTap(col.$1)),
+                ),
+              const SizedBox(height: 20),
+              const Text('Vai trò',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChipLoc(
+                    label: 'Tất cả',
+                    soDem: _tongSoTatCa,
+                    soDemDangNgoac: false,
+                    dangChon: _filterVaiTro == null,
+                    onTap: () => chon(() => _onFilterVaiTroChanged(null)),
+                  ),
+                  for (final vt in _vaiTroOptions)
+                    ChipLoc(
+                      label: vt['ten_hien_thi']?.toString() ??
+                          vt['ma_vai_tro']?.toString() ??
+                          '',
+                      soDem: _demTheoVaiTro[vt['ma_vai_tro']?.toString()] ?? 0,
+                      soDemDangNgoac: false,
+                      dangChon: _filterVaiTro == vt['ma_vai_tro']?.toString(),
+                      onTap: () => chon(() =>
+                          _onFilterVaiTroChanged(vt['ma_vai_tro']?.toString())),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text('Trạng thái',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final opt in _trangThaiOptions)
+                    ChipLoc(
+                      label: opt.$2,
+                      mau: opt.$3,
+                      dangChon: _filterTrangThai == opt.$1,
+                      onTap: () =>
+                          chon(() => _onFilterTrangThaiChanged(opt.$1)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => chon(_xoaLoc),
+                      child: const Text('Xoá lọc'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary),
+                      child: const Text('Xong'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Xoá toàn bộ lọc + sắp xếp đang áp dụng, quay về mặc định.
+  void _xoaLoc() {
+    setState(() {
+      _filterVaiTro = null;
+      _filterTrangThai = null;
+      _sortColumn = null;
+      _sortType = 'ASC';
+      _trang = 1;
+    });
+    unawaited(_taiLai());
+  }
+
+  /// Nhãn tóm tắt bộ lọc/sắp xếp hiện tại — hiện ngay ngoài danh sách
+  /// (không hiện lại toàn bộ chip như trước, bấm vào đây cũng mở modal).
+  String get _nhanTomTat {
+    final vaiTro = _filterVaiTro == null
+        ? 'Tất cả vai trò'
+        : (_vaiTroOptions
+                .firstWhere(
+                    (vt) => vt['ma_vai_tro']?.toString() == _filterVaiTro,
+                    orElse: () =>
+                        {'ten_hien_thi': _filterVaiTro})['ten_hien_thi']
+                ?.toString() ??
+            _filterVaiTro!);
+    final trangThai = _filterTrangThai == null
+        ? 'Tất cả trạng thái'
+        : (_filterTrangThai! ? 'Hoạt động' : 'Khóa');
+    if (_sortColumn == null) return '$vaiTro · $trangThai';
+    final col = _cotSapXep.firstWhere((c) => c.$1 == _sortColumn,
+        orElse: () => (_sortColumn!, _sortColumn!));
+    final mui = _sortType == 'ASC' ? '↑' : '↓';
+    return '$vaiTro · $trangThai · Sắp xếp: ${col.$2} $mui';
+  }
+
   void _onFilterVaiTroChanged(String? value) {
+    if (value == _filterVaiTro) return;
     setState(() {
       _filterVaiTro = value;
       _trang = 1;
@@ -280,6 +541,7 @@ class _NhanVienListViewState extends State<NhanVienListView> {
   }
 
   void _onFilterTrangThaiChanged(bool? value) {
+    if (value == _filterTrangThai) return;
     setState(() {
       _filterTrangThai = value;
       _trang = 1;
@@ -330,63 +592,67 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: _Header(
+            soLuongHoatDong: _soLuongHoatDong,
+            coQuyenThem: coQuyenThem,
+            onThem: _moModalThem,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm theo tên, số điện thoại...',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  _buildSortMenu(),
-                  if (coQuyenThem) ...[
-                    const SizedBox(width: 4),
-                    FilledButton.icon(
-                      onPressed: _moModalThem,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Thêm'),
-                    ),
-                  ],
-                ],
+              Expanded(
+                child: OTimKiem(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  hintText: 'Tìm kiếm theo tên, số điện thoại...',
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildVaiTroDropdown(),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<bool?>(
-                      initialValue: _filterTrangThai,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Trạng thái',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: null, child: Text('Tất cả trạng thái')),
-                        DropdownMenuItem(value: true, child: Text('Hoạt động')),
-                        DropdownMenuItem(value: false, child: Text('Khóa')),
-                      ],
-                      onChanged: _onFilterTrangThaiChanged,
-                    ),
-                  ),
-                ],
-              ),
+              const SizedBox(width: 8),
+              _buildNutMoRong(),
             ],
+          ),
+        ),
+        // Tóm tắt lọc + sắp xếp hiện tại (bấm vào cũng mở lại modal) — thay
+        // vì hiện hết 2 hàng chip như trước, giờ chỉ hiện đang lọc/sắp xếp
+        // theo gì cho gọn, chi tiết đầy đủ nằm trong modal ở nút "...".
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: InkWell(
+            onTap: _moModalLocSapXep,
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.filter_list_rounded,
+                      size: 15,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _nhanTomTat,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         Expanded(child: _buildBody(coQuyenSua)),
@@ -395,82 +661,19 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     );
   }
 
-  /// Menu chọn cột sắp xếp; chọn lại cột đang sắp xếp thì đảo ASC/DESC.
-  Widget _buildSortMenu() {
-    return PopupMenuButton<String>(
-      tooltip: 'Sắp xếp',
-      icon: const Icon(Icons.sort),
-      onSelected: _onSortColumnTap,
-      itemBuilder: (_) => [
-        for (final col in _cotSapXep)
-          PopupMenuItem<String>(
-            value: col.$1,
-            child: Row(
-              children: [
-                Expanded(child: Text(col.$2)),
-                if (_sortColumn == col.$1)
-                  Icon(
-                    _sortType == 'ASC'
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward,
-                    size: 16,
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Dropdown "Vai trò" tách riêng để xử lý trạng thái loading mà KHÔNG
-  /// sinh 2 DropdownMenuItem cùng value:null (mục "Tất cả vai trò" +
-  /// mục "Đang tải..." trước đây dùng chung value:null, gây
-  /// assertion lỗi "There should be exactly one item with ... value: null").
-  /// Cách xử lý: chỉ build item list từ "Tất cả vai trò" + các option đã
-  /// load được (rỗng khi đang loading), và disable cả dropdown lúc loading.
-  Widget _buildVaiTroDropdown() {
-    // Nếu giá trị đang chọn không còn nằm trong danh sách hiện có (vd đang
-    // loading lại, hoặc option đó vừa bị lọc bỏ), fallback về null để
-    // tránh lỗi "value không khớp item nào".
-    final validValues = <String?>{
-      null,
-      ..._vaiTroOptions.map((vt) => vt['ma_vai_tro']?.toString()),
-    };
-    final currentValue =
-        validValues.contains(_filterVaiTro) ? _filterVaiTro : null;
-
-    return DropdownButtonFormField<String?>(
-      // key theo số option + giá trị: initialValue chỉ đọc lúc tạo field,
-      // đổi key để dropdown dựng lại khi options vừa nạp xong.
-      key: ValueKey('vai-tro-${_vaiTroOptions.length}-$currentValue'),
-      initialValue: currentValue,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'Vai trò',
-        border: const OutlineInputBorder(),
-        suffixIcon: _vaiTroLoading
-            ? const Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            : null,
+  /// Nút "..." kế bên ô tìm kiếm, mở modal Lọc & sắp xếp.
+  Widget _buildNutMoRong() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
       ),
-      items: [
-        const DropdownMenuItem(
-          value: null,
-          child: Text('Tất cả vai trò'),
-        ),
-        for (final vt in _vaiTroOptions)
-          DropdownMenuItem(
-            value: vt['ma_vai_tro']?.toString(),
-            child: Text(vt['ten_hien_thi']?.toString() ?? ''),
-          ),
-      ],
-      onChanged: _vaiTroLoading ? null : _onFilterVaiTroChanged,
+      child: IconButton(
+        tooltip: 'Lọc & sắp xếp',
+        onPressed: _moModalLocSapXep,
+        icon: const Icon(Icons.more_vert_rounded),
+      ),
     );
   }
 
@@ -498,35 +701,21 @@ class _NhanVienListViewState extends State<NhanVienListView> {
 
     return RefreshIndicator(
       onRefresh: _taiLai,
-      child: ListView.separated(
+      child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final item = _items[index];
-          final tenVaiTroRaw = item['ten_vai_tro'];
-          final tenVaiTro = tenVaiTroRaw is List
-              ? tenVaiTroRaw.map((e) => e.toString()).join(', ')
-              : (tenVaiTroRaw?.toString() ?? '--');
-          final trangThai = item['trang_thai'] == true;
-
-          // Nút "Sửa" chỉ hiện khi có quyền sửa, và không hiện cho chủ studio.
-          final showEdit = coQuyenSua && !_laChuStudio(item);
-
-          return ListTile(
-            title: Text(item['ho_ten']?.toString() ?? '--'),
-            subtitle: Text(
-              '${item['so_dien_thoai']?.toString() ?? '--'} · '
-              '${item['email']?.toString() ?? '--'} · '
-              '$tenVaiTro · '
-              '${trangThai ? 'Hoạt động' : 'Khóa'}',
+          final isOwner = _laChuStudio(item);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _NhanVienCard(
+              item: item,
+              isOwner: isOwner,
+              showEdit: coQuyenSua && !isOwner,
+              onSua: () => _moModalSua(item),
             ),
-            trailing: showEdit
-                ? TextButton(
-                    onPressed: () => _moModalSua(item),
-                    child: const Text('Sửa'),
-                  )
-                : null,
           );
         },
       ),
@@ -550,6 +739,440 @@ class _NhanVienListViewState extends State<NhanVienListView> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ============================================================
+// HEADER: tiêu đề + phụ đề (số đang hoạt động) + nút "Thêm Nhân Viên".
+// ============================================================
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.soLuongHoatDong,
+    required this.coQuyenThem,
+    required this.onThem,
+  });
+
+  final int soLuongHoatDong;
+  final bool coQuyenThem;
+  final VoidCallback onThem;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Nhân viên',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$soLuongHoatDong nhân viên đang hoạt động',
+                style: TextStyle(
+                    fontSize: 13, color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        if (coQuyenThem) ...[
+          const SizedBox(width: 12),
+          FilledButton.icon(
+            onPressed: onThem,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999)),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Thêm Nhân Viên',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ============================================================
+// Ô TÌM KIẾM dạng viên thuốc, có nút "Tìm" gắn liền bên phải (đúng mẫu).
+// ============================================================
+class _ThanhTimKiem extends StatelessWidget {
+  const _ThanhTimKiem({
+    required this.controller,
+    required this.onChanged,
+    required this.onTimNgay,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onTimNgay;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      padding: const EdgeInsets.only(left: 14, right: 6),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded,
+              color: colorScheme.onSurfaceVariant, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              onSubmitted: (_) => onTimNgay(),
+              decoration: const InputDecoration(
+                hintText: 'Tìm kiếm theo tên, số điện thoại...',
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onTimNgay,
+            style: TextButton.styleFrom(
+              backgroundColor: colorScheme.surfaceContainerHigh,
+              foregroundColor: colorScheme.onSurface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: const Text('Tìm',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CARD 1 NHÂN VIÊN
+// ============================================================
+class _NhanVienCard extends StatelessWidget {
+  const _NhanVienCard({
+    required this.item,
+    required this.isOwner,
+    required this.showEdit,
+    required this.onSua,
+  });
+
+  final Map<String, dynamic> item;
+  final bool isOwner;
+  final bool showEdit;
+  final VoidCallback onSua;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hoTen = item['ho_ten']?.toString() ?? '--';
+    final soDienThoai = item['so_dien_thoai']?.toString() ?? '--';
+    final email = item['email']?.toString() ?? '--';
+    final trangThai = item['trang_thai'] == true;
+    final avatarIdx = avatarIndex(hoTen);
+
+    // `vai_tro`/`ten_vai_tro` có thể là List (nhiều vai trò) hoặc String —
+    // ghép cặp theo đúng thứ tự BE trả về để lấy tên hiển thị cho từng mã.
+    final maVaiTroRaw = item['vai_tro'];
+    final tenVaiTroRaw = item['ten_vai_tro'];
+    final maVaiTroList = maVaiTroRaw is List
+        ? maVaiTroRaw.map((e) => e.toString()).toList()
+        : (maVaiTroRaw == null ? const <String>[] : [maVaiTroRaw.toString()]);
+    final tenVaiTroList = tenVaiTroRaw is List
+        ? tenVaiTroRaw.map((e) => e.toString()).toList()
+        : (tenVaiTroRaw == null ? const <String>[] : [tenVaiTroRaw.toString()]);
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isOwner
+              ? AppColors.primary.withOpacity(0.4)
+              : colorScheme.outline,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: avatarPalette[avatarIdx],
+                      child: Text(
+                        layChuCaiDau(hoTen),
+                        style: TextStyle(
+                          color: avatarPaletteFg[avatarIdx],
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  hoTen,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isOwner)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: Text('👑',
+                                      style: TextStyle(fontSize: 14)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              for (var i = 0; i < maVaiTroList.length; i++)
+                                _VaiTroBadge(
+                                  maVaiTro: maVaiTroList[i],
+                                  ten: i < tenVaiTroList.length
+                                      ? tenVaiTroList[i]
+                                      : maVaiTroList[i],
+                                ),
+                              _TrangThaiDot(hoatDong: trangThai),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (showEdit) ...[
+                      const SizedBox(width: 4),
+                      OutlinedButton(
+                        onPressed: onSua,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(
+                              color: AppColors.primary.withOpacity(0.5)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                        ),
+                        child: const Text('Sửa'),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: colorScheme.outline),
+                const SizedBox(height: 10),
+                _DongLienHe(
+                  icon: Icons.call_outlined,
+                  giaTri: soDienThoai,
+                  nhan: 'Gọi ngay',
+                  nhanIcon: Icons.arrow_forward_rounded,
+                  // TODO: cần thêm package url_launcher và gọi
+                  // launchUrl(Uri(scheme: 'tel', path: soDienThoai)) để mở
+                  // trình quay số thật; hiện tại chỉ báo qua SnackBar.
+                  onTap: () => ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(const SnackBar(
+                        content: Text('Chưa hỗ trợ gọi điện trực tiếp'))),
+                ),
+                const SizedBox(height: 8),
+                _DongLienHe(
+                  icon: Icons.mail_outline_rounded,
+                  giaTri: email,
+                  nhanIcon: Icons.copy_rounded,
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: email));
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                          const SnackBar(content: Text('Đã sao chép email')));
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Ruy băng "OWNER" cho chủ studio — cắt theo góc bo của card nhờ
+          // clipBehavior: Clip.antiAlias ở Container ngoài cùng.
+          if (isOwner)
+            Positioned(
+              top: 14,
+              right: -32,
+              child: Transform.rotate(
+                angle: 0.785398, // 45 độ
+                child: Container(
+                  width: 110,
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  color: AppColors.primary,
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'OWNER',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// BADGE VAI TRÒ — chủ studio dùng màu primary đặc; các vai trò khác chọn
+// màu pastel ổn định theo mã vai trò (tái dùng bảng màu avatar).
+// ============================================================
+class _VaiTroBadge extends StatelessWidget {
+  const _VaiTroBadge({required this.maVaiTro, required this.ten});
+
+  final String maVaiTro;
+  final String ten;
+
+  @override
+  Widget build(BuildContext context) {
+    final laChuStudio = maVaiTro == 'chu_studio';
+    final idx = avatarIndex(maVaiTro);
+    final bg = laChuStudio ? AppColors.primary : avatarPalette[idx];
+    final fg = laChuStudio ? Colors.white : avatarPaletteFg[idx];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Text(
+        ten,
+        style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// CHẤM TRẠNG THÁI ("• Hoạt động" / "• Khóa")
+// ============================================================
+class _TrangThaiDot extends StatelessWidget {
+  const _TrangThaiDot({required this.hoatDong});
+
+  final bool hoatDong;
+
+  @override
+  Widget build(BuildContext context) {
+    final mau = hoatDong ? AppColors.success : const Color(0xFF9CA3AF);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: mau),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          hoatDong ? 'Hoạt động' : 'Khóa',
+          style:
+              TextStyle(color: mau, fontWeight: FontWeight.w700, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// 1 DÒNG LIÊN HỆ (SĐT / email) — icon + giá trị + hành động bên phải.
+// ============================================================
+class _DongLienHe extends StatelessWidget {
+  const _DongLienHe({
+    required this.icon,
+    required this.giaTri,
+    required this.nhanIcon,
+    required this.onTap,
+    this.nhan,
+  });
+
+  final IconData icon;
+  final String giaTri;
+  final String? nhan;
+  final IconData nhanIcon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            giaTri,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (nhan != null) ...[
+                  Text(
+                    nhan!,
+                    style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Icon(nhanIcon, size: 15, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -169,7 +169,7 @@ class _LoiChao extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          tenNguoiDung.isEmpty ? 'Xin chào 👋' : 'Xin chào, $tenNguoiDung 👋',
+          tenNguoiDung.isEmpty ? 'Xin chào' : 'Xin chào, $tenNguoiDung',
           style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
