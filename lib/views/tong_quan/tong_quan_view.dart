@@ -221,6 +221,13 @@ class _TongQuanViewState extends State<TongQuanView> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
+          Text(
+            'Tổng quan',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
           if (_error != null) ...[
             _ErrorBanner(message: _error!),
             const SizedBox(height: 16),

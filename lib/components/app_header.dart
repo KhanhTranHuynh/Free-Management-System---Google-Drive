@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class AppHeader extends StatelessWidget {
   const AppHeader({
@@ -7,6 +8,8 @@ class AppHeader extends StatelessWidget {
     this.isDarkMode = false,
     this.onToggleDarkMode,
     this.onTapAvatar,
+    this.onTapTrangCaNhan,
+    this.onLogout,
     this.dangOnline = true,
   });
 
@@ -15,7 +18,16 @@ class AppHeader extends StatelessWidget {
   final String tenNguoiDung;
   final bool isDarkMode;
   final VoidCallback? onToggleDarkMode;
+
+  /// Gọi thêm (nếu có) mỗi khi bấm vào avatar, trước khi menu hiện ra.
   final VoidCallback? onTapAvatar;
+
+  /// Bấm "Trang cá nhân" trong menu -> điều hướng đến /trang-ca-nhan.
+  final VoidCallback? onTapTrangCaNhan;
+
+  /// Bấm "Logout" trong menu -> xử lý đăng xuất (làm sau).
+  final VoidCallback? onLogout;
+
   final bool dangOnline;
 
   static const _mauLogoVien = Color(0xFFB98A4A); // nâu viền logo
@@ -23,14 +35,27 @@ class AppHeader extends StatelessWidget {
   static const _mauFlow = Color(0xFFB4762A); // nâu vàng chữ "FLOW"
   static const _mauAvatar = Color(0xFF9B7A4A); // nâu avatar
 
+  static const String _logoAssetPath = 'lib/assets/images/logo.svg';
+
   String get _chuCaiDau {
-    final parts = tenNguoiDung.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    final first = parts.first[0];
-    final last = parts.length > 1
-        ? parts.last[0]
-        : (parts.first.length > 1 ? parts.first[1] : '');
-    return (first + last).toUpperCase();
+    final parts = tenNguoiDung
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+
+    if (parts.length == 1) {
+      // Chỉ có 1 từ: lấy tối đa 2 chữ cái đầu của từ đó.
+      final word = parts.first;
+      return (word.length > 1 ? word.substring(0, 2) : word).toUpperCase();
+    }
+
+    // Lấy chữ cái đầu của 2 từ cuối cùng.
+    // Vd: "Huỳnh Khánh Trân" -> "KT" (Khánh + Trân)
+    final apCuoi = parts[parts.length - 2][0];
+    final tenCuoi = parts[parts.length - 1][0];
+    return (apCuoi + tenCuoi).toUpperCase();
   }
 
   @override
@@ -59,17 +84,35 @@ class AppHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ----- Logo -----
+          // ----- Logo (SVG từ assets/images/logo.svg) -----
           Container(
             width: 48,
             height: 48,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: _mauLogoNen,
               borderRadius: BorderRadius.circular(14),
               border:
                   Border.all(color: _mauLogoVien.withOpacity(0.5), width: 1.5),
             ),
-            child: Icon(Icons.cloud, color: _mauLogoVien, size: 24),
+            child: SvgPicture.asset(
+              _logoAssetPath,
+              colorFilter: const ColorFilter.mode(
+                _mauLogoVien,
+                BlendMode.srcIn,
+              ),
+              placeholderBuilder: (context) => const SizedBox(
+                width: 24,
+                height: 24,
+                child: Center(
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 12),
 
@@ -126,45 +169,147 @@ class AppHeader extends StatelessWidget {
           ),
           const SizedBox(width: 4),
 
-          // ----- Avatar -----
-          GestureDetector(
-            onTap: onTapAvatar,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: _mauAvatar,
-                  child: Text(
-                    _chuCaiDau,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
+          // ----- Avatar + menu (Trang cá nhân / Logout) -----
+          _AvatarMenu(
+            chuCaiDau: _chuCaiDau,
+            mauAvatar: _mauAvatar,
+            dangOnline: dangOnline,
+            isDark: isDark,
+            onTapAvatar: onTapAvatar,
+            onTapTrangCaNhan: onTapTrangCaNhan,
+            onLogout: onLogout,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Avatar bấm vào sẽ mở menu: "Trang cá nhân" và "Logout".
+class _AvatarMenu extends StatelessWidget {
+  const _AvatarMenu({
+    required this.chuCaiDau,
+    required this.mauAvatar,
+    required this.dangOnline,
+    required this.isDark,
+    this.onTapAvatar,
+    this.onTapTrangCaNhan,
+    this.onLogout,
+  });
+
+  final String chuCaiDau;
+  final Color mauAvatar;
+  final bool dangOnline;
+  final bool isDark;
+  final VoidCallback? onTapAvatar;
+  final VoidCallback? onTapTrangCaNhan;
+  final VoidCallback? onLogout;
+
+  static const _mauChuMenu = Color(0xFF1E293B);
+
+  void _xuLyChon(BuildContext context, String value) {
+    switch (value) {
+      case 'trang_ca_nhan':
+        if (onTapTrangCaNhan != null) {
+          onTapTrangCaNhan!();
+        } else {
+          Navigator.of(context).pushNamed('/trang-ca-nhan');
+        }
+        break;
+      case 'logout':
+        onLogout?.call();
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      onSelected: (value) => _xuLyChon(context, value),
+      onOpened: onTapAvatar,
+      offset: const Offset(0, 48),
+      elevation: 6,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      padding: EdgeInsets.zero,
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'trang_ca_nhan',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                size: 20,
+                color: isDark ? Colors.white70 : _mauChuMenu,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Trang cá nhân',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : _mauChuMenu,
                 ),
-                if (dangOnline)
-                  Positioned(
-                    right: -1,
-                    bottom: -1,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF22C55E),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color:
-                              isDark ? const Color(0xFF1E293B) : Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'logout',
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                Icons.logout,
+                size: 20,
+                color: isDark ? Colors.white70 : _mauChuMenu,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : _mauChuMenu,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: mauAvatar,
+            child: Text(
+              chuCaiDau,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
           ),
+          if (dangOnline)
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

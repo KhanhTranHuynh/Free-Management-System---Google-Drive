@@ -9,6 +9,7 @@ import '../pages/khach_hang_page.dart';
 import '../pages/login_page.dart';
 import '../pages/nhan_vien_page.dart';
 import '../pages/not_found_page.dart';
+import '../pages/trang_ca_nhan_page.dart';
 import 'auth_guard.dart';
 
 /// Khai báo tất cả route tập trung. Muốn thêm màn hình mới, sửa ở đây.
@@ -23,6 +24,7 @@ class AppRoutes {
   static const String album = '/album';
   static const String albumDetail = '/album/detail';
   static const String log = '/log';
+  static const String TrangCaNhan = '/trang-ca-nhan';
 
   /// Các route cần đăng nhập mới được vào.
   static const Set<String> protected = {
@@ -38,8 +40,6 @@ class AppRoutes {
     final uri = Uri.tryParse(name) ?? Uri();
     final segments = uri.pathSegments; // vd: ['album', 'detail', '123']
 
-    // Nếu path dạng /album/detail/:id thì tách id ra, dùng routeKey chuẩn
-    // để so khớp switch bên dưới (giống dynamic segment của React Router).
     String routeKey = name;
     String? idAlbum;
     if (segments.length >= 3 &&
@@ -71,6 +71,9 @@ class AppRoutes {
         break;
       case log:
         page = const NhatKyHeThongPage();
+        break;
+      case TrangCaNhan:
+        page = const TrangCaNhanPage();
         break;
       default:
         page = const NotFoundPage();
