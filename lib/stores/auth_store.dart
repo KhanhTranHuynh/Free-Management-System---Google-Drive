@@ -19,12 +19,14 @@ class AuthStore extends ChangeNotifier {
   NhanVien? _nguoiDung;
   Map<String, String>? _quyen;
   bool _isLoading = false;
+  bool _isLoggingOut = false;
   String? _error;
 
   NhanVien? get nguoiDung => _nguoiDung;
   Map<String, String>? get quyen => _quyen;
   bool get isLoggedIn => _nguoiDung != null;
   bool get isLoading => _isLoading;
+  bool get isLoggingOut => _isLoggingOut;
   String? get error => _error;
 
   /// Đăng nhập bằng số điện thoại + mật khẩu.
@@ -67,11 +69,33 @@ class AuthStore extends ChangeNotifier {
     }
   }
 
+  /// Gọi BE huỷ phiên (`/xac-thuc/dang-xuat`) rồi tháo dữ liệu phiên đăng
+  /// nhập ở client (token trong TokenStorage + nguoiDung/quyen trong store).
+  ///
+  /// Dù API đăng xuất thành công hay lỗi (mất mạng, token hết hạn...), dữ
+  /// liệu ở client vẫn LUÔN được tháo ra trong `finally`, để tránh người
+  /// dùng bị kẹt ở trạng thái "tưởng đã đăng xuất" nhưng UI vẫn coi là
+  /// đang đăng nhập.
   Future<void> dangXuat() async {
-    await TokenStorage.clear();
-    _nguoiDung = null;
-    _quyen = null;
+    _isLoggingOut = true;
     notifyListeners();
+
+    try {
+      await _api.dangXuat();
+    } catch (e) {
+      // Toast lỗi (nếu có) đã tự hiện ở tầng apis/ (notifyApiByCode).
+      // Ở đây chỉ log lại để tiện debug, không chặn việc dọn dẹp phía dưới.
+      debugPrint(
+          '[AuthStore] Gọi API đăng xuất lỗi (vẫn tiếp tục dọn dẹp): $e');
+    } finally {
+      await TokenStorage.clear();
+      _nguoiDung = null;
+      _quyen = null;
+      _isLoggingOut = false;
+      notifyListeners();
+
+      debugPrint('[AuthStore] Đã tháo dữ liệu phiên đăng nhập khỏi store.');
+    }
   }
 
   /// Kiểm tra nhanh module/hành động có nằm trong quyền đang lưu hay

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+
+import '../routes/app_routes.dart';
+import '../stores/auth_store.dart';
 
 class AppHeader extends StatelessWidget {
   const AppHeader({
@@ -25,7 +29,10 @@ class AppHeader extends StatelessWidget {
   /// Bấm "Trang cá nhân" trong menu -> điều hướng đến /trang-ca-nhan.
   final VoidCallback? onTapTrangCaNhan;
 
-  /// Bấm "Logout" trong menu -> xử lý đăng xuất (làm sau).
+  /// Bấm "Logout" trong menu.
+  /// Để trống (mặc định) -> AppHeader TỰ gọi AuthStore.dangXuat() (gọi API
+  /// /xac-thuc/dang-xuat + tháo dữ liệu khỏi store) rồi điều hướng về màn
+  /// đăng nhập. Truyền callback riêng nếu muốn tự xử lý theo cách khác.
   final VoidCallback? onLogout;
 
   final bool dangOnline;
@@ -58,6 +65,19 @@ class AppHeader extends StatelessWidget {
     return (apCuoi + tenCuoi).toUpperCase();
   }
 
+  /// Xử lý logout mặc định: gọi AuthStore.dangXuat() (call API + tháo
+  /// dữ liệu store) rồi đưa người dùng về màn đăng nhập.
+  Future<void> _dangXuatMacDinh(BuildContext context) async {
+    final authStore = context.read<AuthStore>();
+    await authStore.dangXuat();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -84,7 +104,7 @@ class AppHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ----- Logo (SVG từ assets/images/logo.svg) -----
+          // ----- Logo (SVG từ lib/assets/images/logo.svg) -----
           Container(
             width: 48,
             height: 48,
@@ -177,7 +197,7 @@ class AppHeader extends StatelessWidget {
             isDark: isDark,
             onTapAvatar: onTapAvatar,
             onTapTrangCaNhan: onTapTrangCaNhan,
-            onLogout: onLogout,
+            onLogout: onLogout ?? () => _dangXuatMacDinh(context),
           ),
         ],
       ),

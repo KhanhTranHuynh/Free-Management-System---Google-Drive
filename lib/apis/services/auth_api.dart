@@ -76,4 +76,36 @@ class AuthApi {
       refreshToken: envelope['rToken']?.toString(),
     );
   }
+
+  /// Gọi BE huỷ phiên đăng nhập hiện tại (huỷ token/rToken phía server).
+  /// [thongBao]: true (mặc định) = tự hiện toast theo code/message BE trả về.
+  ///
+  /// Lưu ý: dù API này thành công hay lỗi, AuthStore.dangXuat() vẫn sẽ tháo
+  /// dữ liệu phiên đăng nhập ở client (token, nguoiDung, quyen) để tránh
+  /// người dùng bị kẹt ở trạng thái đăng nhập "ảo" khi mất mạng/BE lỗi.
+  Future<void> dangXuat({bool thongBao = true}) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/xac-thuc/dang-xuat',
+        key: 'dang-xuat',
+        method: 'POST',
+        data: const {},
+        showOverlay: true,
+      ),
+    );
+
+    if (thongBao) {
+      notifyApiByCode(
+        kq,
+        options: const ApiNotifyOptions(
+          successMessage: 'Đăng xuất thành công',
+          errorMessage: 'Đăng xuất thất bại',
+        ),
+      );
+    }
+
+    if (!kq.isSuccess) {
+      throw kq.error ?? const ApiException(message: 'Đăng xuất thất bại.');
+    }
+  }
 }
