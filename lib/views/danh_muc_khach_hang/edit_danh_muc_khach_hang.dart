@@ -44,6 +44,11 @@ class _EditDanhMucController extends ChangeNotifier {
             TextEditingController(text: danhMuc['ten_hien_thi']?.toString()),
         moTa = TextEditingController(text: danhMuc['mo_ta']?.toString()) {
     trangThai = danhMuc['dang_hoat_dong'] == true;
+    // Màu hiển thị: ẨN khỏi UI (giống add_danh_muc_khach_hang.dart), nhưng
+    // vẫn giữ giá trị màu cũ của item (nếu có) để gửi lại nguyên vẹn trong
+    // payload cập nhật — khớp bản React: mau_sac lấy từ
+    // item?.mau_sac || MAU_SAC_MAC_DINH, ColorPicker chỉ bị comment/ẩn chứ
+    // không xoá khỏi payload.
     mauSac = danhMuc['mau_sac']?.toString() ?? kMauSacMacDinh;
   }
 
@@ -54,7 +59,7 @@ class _EditDanhMucController extends ChangeNotifier {
   final TextEditingController moTa;
 
   late bool trangThai;
-  late String mauSac;
+  late final String mauSac;
 
   bool isSaving = false;
   String? formError;
@@ -71,20 +76,11 @@ class _EditDanhMucController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMauSac(String hex) {
-    mauSac = hex;
-    errors.remove('mauSac');
-    notifyListeners();
-  }
-
   bool _validate() {
     errors.clear();
     final ten = tenHienThi.text.trim();
 
     if (ten.isEmpty) errors['tenHienThi'] = 'Vui lòng nhập tên danh mục';
-    if (mauSac.isNotEmpty && !isHexMauSacHopLe(mauSac)) {
-      errors['mauSac'] = 'Mã màu không hợp lệ';
-    }
 
     notifyListeners();
     return errors.isEmpty;
@@ -102,7 +98,8 @@ class _EditDanhMucController extends ChangeNotifier {
     // TODO: xác nhận đúng tên field id (đang giả định 'id', fallback
     // 'id_danh_muc_khach_hang') và tên hàm update thật của DanhMucKhachHangApi.
     final payload = <String, dynamic>{
-      'id': danhMuc['id'] ?? danhMuc['id_danh_muc_khach_hang'],
+      'id_danh_muc_khach_hang':
+          danhMuc['id_danh_muc_khach_hang'] ?? danhMuc['id'],
       'ten_hien_thi': tenHienThi.text.trim(),
       'mo_ta': moTa.text.trim(),
       'dang_hoat_dong': trangThai,
@@ -193,34 +190,6 @@ class _EditDanhMucBody extends StatelessWidget {
     );
   }
 
-  Widget _mauSacField(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Màu hiển thị', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8),
-        // Bảng màu preset + nút "+" mở bánh xe màu tự do — dùng chung
-        // đúng mẫu UI với add_danh_muc_khach_hang.dart /
-        // add_nhan_vien.dart qua MauSacGoiYPicker.
-        MauSacGoiYPicker(
-          mauSacDangChon: c.mauSac,
-          onChon: c.isSaving ? (_) {} : c.setMauSac,
-          choPhepTuyChinh: true,
-          swatchSize: 34,
-        ),
-        if (c.errors['mauSac'] != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              c.errors['mauSac']!,
-              style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
-            ),
-          ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -260,8 +229,9 @@ class _EditDanhMucBody extends StatelessWidget {
               value: c.trangThai,
               onChanged: c.isSaving ? null : c.setTrangThai,
             ),
-            const SizedBox(height: 8),
-            _mauSacField(context),
+            // Phần "Màu hiển thị" đã ẩn khỏi form (giữ nguyên màu cũ của
+            // item, gửi ngầm trong payload) — khớp bản React đang comment
+            // khối ColorPicker.
             if (c.formError != null) ...[
               const SizedBox(height: 12),
               Text(

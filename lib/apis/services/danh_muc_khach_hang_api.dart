@@ -115,7 +115,7 @@ class DanhMucKhachHangApi {
         apiUrl: '/danh-muc-khach-hang/xoa',
         method: 'POST',
         key: 'danh-muc-khach-hang-xoa',
-        data: {'id': id},
+        data: {'id_danh_muc_khach_hang': id},
       ),
     );
 
