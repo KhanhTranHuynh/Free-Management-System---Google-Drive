@@ -98,6 +98,29 @@ class AuthStore extends ChangeNotifier {
     }
   }
 
+  /// Cập nhật lại NGUỒN DUY NHẤT (_nguoiDung) sau khi màn "Sửa thông tin
+  /// cá nhân" lưu thành công, mà KHÔNG cần gọi lại /ca-nhan hay F5.
+  ///
+  /// [duLieuMoi] là map các field vừa đổi (vd { 'ho_ten': ..., 'mau_sac':
+  /// ... }) do CaNhanApi.capNhat() trả về. Cách merge: lấy toJson() của
+  /// nguoiDung hiện tại, đè các key có trong duLieuMoi lên, rồi dựng lại
+  /// NhanVien bằng fromJson() — nhờ vậy không cần NhanVien có copyWith(),
+  /// chỉ cần fromJson()/toJson() đối xứng nhau (đã có sẵn).
+  void capNhatThongTinCoBan(Map<String, dynamic> duLieuMoi) {
+    if (_nguoiDung == null) return;
+
+    final merged = <String, dynamic>{
+      ..._nguoiDung!.toJson(),
+      ...duLieuMoi,
+    };
+
+    _nguoiDung = NhanVien.fromJson(merged);
+    notifyListeners();
+
+    debugPrint('[AuthStore] Đã cập nhật thông tin cơ bản vào store:');
+    debugPrint('[AuthStore] nguoiDung = ${_nguoiDung?.toJson()}');
+  }
+
   /// Kiểm tra nhanh module/hành động có nằm trong quyền đang lưu hay
   /// không (vd coQuyen('ALBUM', 'xem')). Chỉ dùng để ẩn/hiện UI cho mượt
   /// — KHÔNG thay thế kiểm tra quyền thật ở BE.
