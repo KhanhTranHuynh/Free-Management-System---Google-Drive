@@ -7,11 +7,24 @@ import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/danh_muc_khach_hang_api.dart';
 import '../../stores/auth_store.dart';
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật của app_colors.dart
+// trong dự án (giống nhan_vien_list_view.dart).
+import '../../configs/app_colors.dart';
+import '../../components/o_tim_kiem.dart';
+import '../../components/chip_loc.dart'; // TODO: chỉnh lại đường dẫn cho khớp vị trí thật ChipLoc
 import 'add_danh_muc_khach_hang.dart';
 import 'edit_danh_muc_khach_hang.dart';
 
 /// Danh sách danh mục khách hàng. State giữ cục bộ trong View vì chỉ
 /// phục vụ 1 màn hình; dữ liệu để dạng Map, tự map khi cần.
+///
+/// UI dạng card theo mẫu thiết kế mới (giống NhanVienListView): mỗi danh
+/// mục là 1 card có icon vuông bo góc, chip mã, box mô tả, footer 2 nút
+/// Sửa/Xoá — thay cho ListTile trơn trước đây.
+///
+/// FILTER: thêm hàng chip "Tất cả / Hoạt động / Khóa" ngay dưới ô tìm
+/// kiếm, lọc theo field `dang_hoat_dong` — filter được GỬI LÊN API (server
+/// side), không lọc lại danh sách ở client, để phân trang vẫn đúng.
 class DanhMucKhachHangListView extends StatefulWidget {
   const DanhMucKhachHangListView({super.key});
 
@@ -35,6 +48,9 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
   bool _isLoadingMore = false;
   String? _error;
   int _requestId = 0; // bỏ kết quả cũ khi gõ tìm kiếm nhanh
+
+  // null = Tất cả, true = Hoạt động, false = Khóa.
+  bool? _dangHoatDongLoc;
 
   bool _dangXuLy = false; // chặn bấm Thêm/Sửa/Xoá dồn dập cùng lúc
 
@@ -86,10 +102,13 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
     });
 
     try {
+      // TODO: xác nhận tên tham số thật trong DanhMucKhachHangApi.layDanhSach
+      // — đang giả định `dangHoatDong` (bool?, null = không lọc trạng thái).
       final body = await _api.layDanhSach(
         timKiem: _timKiem,
         trang: 1,
         soLuong: _soLuong,
+        dangHoatDong: _dangHoatDongLoc,
       );
       if (!mounted || id != _requestId) return;
 
@@ -125,6 +144,7 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
         timKiem: _timKiem,
         trang: _trang + 1,
         soLuong: _soLuong,
+        dangHoatDong: _dangHoatDongLoc,
       );
       if (!mounted || id != _requestId) return;
       setState(() {
@@ -151,6 +171,13 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
       _timKiem = value.trim();
       _taiLai();
     });
+  }
+
+  /// Đổi chip lọc trạng thái; bỏ qua nếu bấm lại đúng chip đang chọn.
+  void _onChonLoc(bool? value) {
+    if (_dangHoatDongLoc == value) return;
+    setState(() => _dangHoatDongLoc = value);
+    _taiLai();
   }
 
   /// Mở modal thêm danh mục khách hàng; reload danh sách nếu tạo thành công.
@@ -241,31 +268,68 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: Row(
             children: [
               Expanded(
-                child: TextField(
+                child: OTimKiem(
                   controller: _searchController,
                   onChanged: _onSearchChanged,
-                  decoration: const InputDecoration(
-                    hintText: 'Tìm kiếm danh mục khách hàng...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                  ),
+                  hintText: 'Tìm kiếm danh mục khách hàng...',
                 ),
               ),
               if (coQuyenThem) ...[
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: _moModalThem,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Thêm'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999)),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Thêm',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ],
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChipLoc(
+                    label: 'Tất cả',
+                    dangChon: _dangHoatDongLoc == null,
+                    onTap: () => _onChonLoc(null),
+                  ),
+                  const SizedBox(width: 8),
+                  ChipLoc(
+                    label: 'Hoạt động',
+                    mau: const Color(0xFF16A34A),
+                    dangChon: _dangHoatDongLoc == true,
+                    onTap: () => _onChonLoc(true),
+                  ),
+                  const SizedBox(width: 8),
+                  ChipLoc(
+                    label: 'Khóa',
+                    mau: const Color(0xFF9CA3AF),
+                    dangChon: _dangHoatDongLoc == false,
+                    onTap: () => _onChonLoc(false),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Expanded(child: _buildBody(coQuyenSua, coQuyenXoa)),
       ],
     );
@@ -290,16 +354,24 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
     }
 
     if (_items.isEmpty) {
-      return const Center(child: Text('Chưa có danh mục khách hàng nào'));
+      return Center(
+        child: Text(
+          _dangHoatDongLoc == null
+              ? 'Chưa có danh mục khách hàng nào'
+              : _dangHoatDongLoc == true
+                  ? 'Chưa có danh mục đang hoạt động'
+                  : 'Chưa có danh mục bị khóa',
+        ),
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _taiLai,
-      child: ListView.separated(
+      child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         itemCount: _items.length + (_isLoadingMore ? 1 : 0),
-        separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
           if (index >= _items.length) {
             return const Padding(
@@ -308,12 +380,15 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
             );
           }
           final item = _items[index];
-          return _ItemTile(
-            item: item,
-            coQuyenSua: coQuyenSua,
-            coQuyenXoa: coQuyenXoa,
-            onSua: () => _moModalSua(item),
-            onXoa: () => _xacNhanXoa(item),
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _DanhMucCard(
+              item: item,
+              coQuyenSua: coQuyenSua,
+              coQuyenXoa: coQuyenXoa,
+              onSua: () => _moModalSua(item),
+              onXoa: () => _xacNhanXoa(item),
+            ),
           );
         },
       ),
@@ -321,8 +396,12 @@ class _DanhMucKhachHangListViewState extends State<DanhMucKhachHangListView> {
   }
 }
 
-class _ItemTile extends StatelessWidget {
-  const _ItemTile({
+// ============================================================
+// CARD 1 DANH MỤC KHÁCH HÀNG — khớp mẫu: icon vuông bo góc + tên + badge
+// trạng thái, chip "Mã:", box mô tả, footer 2 nút Sửa/Xoá.
+// ============================================================
+class _DanhMucCard extends StatelessWidget {
+  const _DanhMucCard({
     required this.item,
     required this.coQuyenSua,
     required this.coQuyenXoa,
@@ -336,50 +415,205 @@ class _ItemTile extends StatelessWidget {
   final VoidCallback onSua;
   final VoidCallback onXoa;
 
-  Color _parseColor(String? hex) {
-    if (hex == null) return Colors.grey;
+  Color _parseColor(String? hex, {required Color fallback}) {
+    if (hex == null) return fallback;
     final clean = hex.replaceAll('#', '');
     final value =
         int.tryParse(clean.length == 6 ? 'FF$clean' : clean, radix: 16);
-    return value == null ? Colors.grey : Color(value);
+    return value == null ? fallback : Color(value);
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final ten = item['ten_hien_thi']?.toString() ?? '';
     final ma = item['ma_danh_muc']?.toString() ?? '';
     final moTa = item['mo_ta']?.toString() ?? '';
     final hoatDong = item['dang_hoat_dong'] == true;
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: _parseColor(item['mau_sac']?.toString()),
-        radius: 14,
+    final iconBg = _parseColor(item['mau_sac']?.toString(),
+        fallback: const Color(0xFFFFE9B8));
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      title: Text(ten),
-      subtitle: Text([ma, if (moTa.isNotEmpty) moTa].join(' • ')),
-      // Trạng thái + menu Sửa/Xoá (ẩn hẳn menu nếu không có quyền nào).
-      trailing: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.workspace_premium_rounded,
+                    color: Color(0xFFB8874A)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            ten,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 17),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusBadge(hoatDong: hoatDong),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text('Mã: ',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                color: colorScheme.onSurfaceVariant)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            ma,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (coQuyenSua) ...[
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: onSua,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999)),
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 15),
+                  label: const Text('Sửa'),
+                ),
+              ],
+              if (coQuyenXoa) ...[
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: onXoa,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.error,
+                    side: BorderSide(color: colorScheme.error.withOpacity(0.5)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                  label: const Text('Xoá'),
+                ),
+              ],
+            ],
+          ),
+          if (moTa.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 14, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Text(
+                        'MÔ TẢ DANH MỤC',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(moTa, style: const TextStyle(fontSize: 13.5)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.hoatDong});
+
+  final bool hoatDong;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = hoatDong ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            hoatDong ? Icons.check_circle : Icons.pause_circle_outline,
-            color: hoatDong ? Colors.green : Colors.grey,
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          if (coQuyenSua || coQuyenXoa)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                if (value == 'sua') onSua();
-                if (value == 'xoa') onXoa();
-              },
-              itemBuilder: (context) => [
-                if (coQuyenSua)
-                  const PopupMenuItem(value: 'sua', child: Text('Sửa')),
-                if (coQuyenXoa)
-                  const PopupMenuItem(value: 'xoa', child: Text('Xoá')),
-              ],
-            ),
+          const SizedBox(width: 5),
+          Text(
+            hoatDong ? 'Hoạt động' : 'Khóa',
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w700, fontSize: 11.5),
+          ),
         ],
       ),
     );

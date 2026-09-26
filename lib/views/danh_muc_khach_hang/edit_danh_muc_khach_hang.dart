@@ -5,22 +5,7 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/danh_muc_khach_hang_api.dart';
 import '../../components/app_modal.dart';
 import '../../components/app_text_input.dart';
-
-const List<String> _mauSacGoiY = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#8B5CF6',
-  '#EC4899',
-  '#14B8A6',
-  '#64748B',
-];
-
-final RegExp _hexRegex = RegExp(r'^#[0-9A-Fa-f]{6}$');
-
-Color _hexToColor(String hex) =>
-    Color(int.parse('FF${hex.substring(1)}', radix: 16));
+import '../../utils/mau_sac_util.dart';
 
 /// Mở modal "Sửa danh mục khách hàng".
 /// Trả về `true` nếu cập nhật thành công (nơi gọi tự `reload()`), `null`
@@ -38,17 +23,20 @@ Future<bool?> showEditDanhMucKhachHangModal(
     context,
     title: 'Sửa danh mục khách hàng',
     type: AppModalType.bottomSheet,
-    closeOnBackdropClick: false,
+    closeOnBackdropClick: false, // form nhập dở -> chạm ra ngoài chỉ rung
     builder: (_) => _EditDanhMucBody(c: controller),
     footerBuilder: (_) => _EditDanhMucFooter(c: controller),
   );
 
+  // Future của route hoàn tất ngay khi pop, lúc animation đóng vẫn còn
+  // chạy và TextField vẫn dùng controller -> dispose trễ để tránh lỗi
+  // "used after being disposed".
   Future.delayed(const Duration(milliseconds: 500), controller.dispose);
   return result;
 }
 
 // ============================================================
-// CONTROLLER
+// CONTROLLER: state form + validate + gọi API
 // ============================================================
 class _EditDanhMucController extends ChangeNotifier {
   _EditDanhMucController(this._api, {required this.danhMuc})
@@ -56,7 +44,7 @@ class _EditDanhMucController extends ChangeNotifier {
             TextEditingController(text: danhMuc['ten_hien_thi']?.toString()),
         moTa = TextEditingController(text: danhMuc['mo_ta']?.toString()) {
     trangThai = danhMuc['dang_hoat_dong'] == true;
-    mauSac = danhMuc['mau_sac']?.toString() ?? _mauSacGoiY.first;
+    mauSac = danhMuc['mau_sac']?.toString() ?? kMauSacMacDinh;
   }
 
   final DanhMucKhachHangApi _api;
@@ -78,8 +66,7 @@ class _EditDanhMucController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTrangThai(bool? v) {
-    if (v == null) return;
+  void setTrangThai(bool v) {
     trangThai = v;
     notifyListeners();
   }
@@ -95,7 +82,7 @@ class _EditDanhMucController extends ChangeNotifier {
     final ten = tenHienThi.text.trim();
 
     if (ten.isEmpty) errors['tenHienThi'] = 'Vui lòng nhập tên danh mục';
-    if (mauSac.isNotEmpty && !_hexRegex.hasMatch(mauSac.trim())) {
+    if (mauSac.isNotEmpty && !isHexMauSacHopLe(mauSac)) {
       errors['mauSac'] = 'Mã màu không hợp lệ';
     }
 
@@ -103,6 +90,7 @@ class _EditDanhMucController extends ChangeNotifier {
     return errors.isEmpty;
   }
 
+  /// true = cập nhật thành công.
   Future<bool> submit() async {
     if (isSaving) return false;
     if (!_validate()) return false;
@@ -125,7 +113,8 @@ class _EditDanhMucController extends ChangeNotifier {
       await _api.capNhat(payload);
       return true;
     } on ApiException {
-      return false; // toast lỗi đã hiển thị ở tầng API
+      // Toast lỗi đã được hiển thị ở tầng API (notifyApiByCode).
+      return false;
     } catch (_) {
       formError = 'Cập nhật danh mục thất bại. Vui lòng thử lại.';
       return false;
@@ -144,7 +133,7 @@ class _EditDanhMucController extends ChangeNotifier {
 }
 
 // ============================================================
-// FOOTER
+// FOOTER: Hủy / Lưu
 // ============================================================
 class _EditDanhMucFooter extends StatelessWidget {
   const _EditDanhMucFooter({required this.c});
@@ -187,7 +176,7 @@ class _EditDanhMucFooter extends StatelessWidget {
 }
 
 // ============================================================
-// BODY
+// BODY: form
 // ============================================================
 class _EditDanhMucBody extends StatelessWidget {
   const _EditDanhMucBody({required this.c});
@@ -211,32 +200,14 @@ class _EditDanhMucBody extends StatelessWidget {
       children: [
         Text('Màu hiển thị', style: theme.textTheme.labelLarge),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final hex in _mauSacGoiY)
-              GestureDetector(
-                onTap: c.isSaving ? null : () => c.setMauSac(hex),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: _hexToColor(hex),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: c.mauSac.toUpperCase() == hex
-                          ? theme.colorScheme.onSurface
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                  child: c.mauSac.toUpperCase() == hex
-                      ? const Icon(Icons.check, size: 18, color: Colors.white)
-                      : null,
-                ),
-              ),
-          ],
+        // Bảng màu preset + nút "+" mở bánh xe màu tự do — dùng chung
+        // đúng mẫu UI với add_danh_muc_khach_hang.dart /
+        // add_nhan_vien.dart qua MauSacGoiYPicker.
+        MauSacGoiYPicker(
+          mauSacDangChon: c.mauSac,
+          onChon: c.isSaving ? (_) {} : c.setMauSac,
+          choPhepTuyChinh: true,
+          swatchSize: 34,
         ),
         if (c.errors['mauSac'] != null)
           Padding(
@@ -282,20 +253,14 @@ class _EditDanhMucBody extends StatelessWidget {
               onChanged: (_) => c.clearError('moTa'),
             ),
             const SizedBox(height: 14),
-            DropdownButtonFormField<bool>(
-              initialValue: c.trangThai,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Trạng thái',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: true, child: Text('Hoạt động')),
-                DropdownMenuItem(value: false, child: Text('Khóa')),
-              ],
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Trạng thái'),
+              subtitle: Text(c.trangThai ? 'Hoạt động' : 'Khóa'),
+              value: c.trangThai,
               onChanged: c.isSaving ? null : c.setTrangThai,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             _mauSacField(context),
             if (c.formError != null) ...[
               const SizedBox(height: 12),

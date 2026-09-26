@@ -133,4 +133,40 @@ class DanhMucKhachHangApi {
           const ApiException(message: 'Không xoá được danh mục khách hàng.');
     }
   }
+
+  Future<Map<String, dynamic>> sinhMa({String? idStudioLocal}) async {
+    final kq = await _manager.send(
+      ApiRequest(
+        apiUrl: '/danh-muc-khach-hang/sinh-ma',
+        method: 'POST',
+        key: 'danh-muc-khach-hang-sinh-ma',
+        data: {
+          if (idStudioLocal != null) 'id_studio_local': idStudioLocal,
+        },
+      ),
+    );
+
+    if (!kq.isSuccess) {
+      if (!kq.isCanceled) {
+        notifyApiByCode(
+          kq,
+          options: const ApiNotifyOptions(
+            silentOnSuccess: true,
+            errorMessage: 'Không sinh được mã danh mục khách hàng',
+          ),
+        );
+      }
+      throw kq.error ??
+          const ApiException(
+              message: 'Không sinh được mã danh mục khách hàng.');
+    }
+
+    final data = kq.payload;
+    // Endpoint này trả 'data' là string thuần (vd 'DMKH0001'), không phải
+    // Map như các endpoint khác -> bọc lại thành {'data': ...} để nơi gọi
+    // (controller) đọc được qua body['data'] thống nhất.
+    if (data is Map) return Map<String, dynamic>.from(data);
+    if (data != null) return {'data': data};
+    return const <String, dynamic>{};
+  }
 }
