@@ -5,131 +5,22 @@ import 'package:flutter/material.dart';
 import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/tong_quan_api.dart';
-
-// ============================================================
-// MAP TRẠNG THÁI / NHÃN — khớp TRANG_THAI_MAP, TEN_BANG_LABEL,
-// HANH_DONG_LABEL, HANH_DONG_ICON bên React.
-// ============================================================
-class _TrangThaiInfo {
-  const _TrangThaiInfo(this.label, this.color);
-  final String label;
-  final Color color;
-}
-
-const Map<String, _TrangThaiInfo> _trangThaiMap = {
-  'chua_xu_ly': _TrangThaiInfo('Chưa xử lý', Color(0xFFF59E0B)),
-  'dang_xu_ly': _TrangThaiInfo('Đang xử lý', Color(0xFF3B82F6)),
-  'hoan_thanh': _TrangThaiInfo('Hoàn thành', Color(0xFF10B981)),
-  'huy': _TrangThaiInfo('Đã huỷ', Color(0xFFF43F5E)),
-};
-
-const Map<String, String> _tenBangLabel = {
-  'album': 'album',
-  'yeu_cau_chinh_sua': 'yêu cầu chỉnh sửa',
-  'tep_anh': 'tệp ảnh',
-};
-
-const Map<String, String> _hanhDongLabel = {
-  'tao': 'đã tạo mới',
-  'cap_nhat': 'đã cập nhật',
-  'xoa': 'đã xoá',
-  'chot_tat_ca_theo_album': 'đã chốt tất cả yêu cầu chỉnh sửa của',
-};
-
-const Map<String, String> _hanhDongIcon = {
-  'tao': '⬆️',
-  'cap_nhat': '✏️',
-  'xoa': '❌',
-  'chot_tat_ca_theo_album': '✅',
-};
-
-const Map<String, Color> _hanhDongIconBg = {
-  'tao': Color(0xFFE0F2FE), // sky-50
-  'cap_nhat': Color(0xFFFFFBEB), // amber-50
-  'xoa': Color(0xFFFFF1F2), // rose-50
-  'chot_tat_ca_theo_album': Color(0xFFECFDF5), // emerald-50
-};
-
-const Map<String, Color> _hanhDongIconFg = {
-  'tao': Color(0xFF0284C7),
-  'cap_nhat': Color(0xFFD97706),
-  'xoa': Color(0xFFE11D48),
-  'chot_tat_ca_theo_album': Color(0xFF059669),
-};
-
-/// nhat_ky_he_thong.ghi_chu hiện đang null -> tự build mô tả từ
-/// ten_bang + hanh_dong, giống moTaLog() bên React.
-String _moTaLog(Map<String, dynamic> log) {
-  final hanhDongRaw = log['hanh_dong']?.toString() ?? '';
-  final tenBangRaw = log['ten_bang']?.toString() ?? '';
-  final hanhDong = _hanhDongLabel[hanhDongRaw] ?? hanhDongRaw;
-  final banLabel = _tenBangLabel[tenBangRaw] ?? tenBangRaw;
-  return 'Hệ thống $hanhDong $banLabel';
-}
-
-// ============================================================
-// AVATAR — màu ổn định theo id (hash), khớp avatarClass() bên React.
-// ============================================================
-const List<Color> _avatarPalette = [
-  Color(0xFFE0E7FF), // indigo-100
-  Color(0xFFCCFBF1), // teal-100
-  Color(0xFFFFEDD5), // orange-100
-  Color(0xFFF3E8FF), // purple-100
-  Color(0xFFCFFAFE), // cyan-100
-];
-
-const List<Color> _avatarPaletteFg = [
-  Color(0xFF4338CA),
-  Color(0xFF0F766E),
-  Color(0xFFC2410C),
-  Color(0xFF7E22CE),
-  Color(0xFF0E7490),
-];
-
-int _avatarIndex(String seed) {
-  var hash = 0;
-  for (final code in seed.codeUnits) {
-    hash = (hash * 31 + code) & 0x7fffffff;
-  }
-  return hash % _avatarPalette.length;
-}
-
-/// Lấy chữ cái đầu của 2 từ cuối trong họ tên (vd "Nguyễn Văn An" -> "VA"),
-/// khớp layChuCaiDau() bên React.
-String _layChuCaiDau(String? hoTen) {
-  if (hoTen == null || hoTen.trim().isEmpty) return '?';
-  final words = hoTen.trim().split(RegExp(r'\s+'));
-  final lastTwo = words.length <= 2 ? words : words.sublist(words.length - 2);
-  return lastTwo.map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase();
-}
-
-// ============================================================
-// FORMAT NGÀY GIỜ — thay cho dateHelper bên React.
-// TODO: nếu app đã có helper format ngày dùng chung (vd package intl),
-// thay 2 hàm này bằng helper đó để đồng nhất định dạng toàn app.
-// ============================================================
-String _formatDate(String? iso) {
-  if (iso == null || iso.isEmpty) return '--';
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return '--';
-  final d = dt.day.toString().padLeft(2, '0');
-  final m = dt.month.toString().padLeft(2, '0');
-  return '$d/$m/${dt.year}';
-}
-
-String _formatNgayGio(String? iso) {
-  if (iso == null || iso.isEmpty) return '--';
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return '--';
-  final gio = '${dt.hour.toString().padLeft(2, '0')}:'
-      '${dt.minute.toString().padLeft(2, '0')}';
-  return '$gio ${_formatDate(iso)}';
-}
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật của app_colors.dart /
+// app_spacing.dart trong dự án (đang giả định cùng cấp với apis/ ở lib/configs/).
+import '../../configs/app_colors.dart';
+import '../../configs/app_spacing.dart';
+import '../../utils/tong_quan_util.dart';
+import '../../utils/time_util.dart';
 
 /// Trang Tổng quan (dashboard trang chủ). State giữ cục bộ trong View,
 /// tải 1 lần khi mở màn — giống pattern các list view khác trong app,
 /// nhưng KHÔNG có search/filter/phân trang vì dashboard chỉ hiển thị
 /// snapshot rút gọn (limit cố định), không phải danh sách đầy đủ.
+///
+/// Toàn bộ màu trong file này lấy từ AppColors / Theme.of(context) (áp
+/// dụng theo AppTheme.light/dark đã khai báo) thay vì hex cứng, để khi
+/// cần đổi bộ nhận diện chỉ phải sửa app_colors.dart. Các hằng số/hàm
+/// thuần (map trạng thái, format ngày, avatar...) nằm ở tong_quan_util.dart.
 class TongQuanView extends StatefulWidget {
   const TongQuanView({super.key});
 
@@ -147,6 +38,9 @@ class _TongQuanViewState extends State<TongQuanView> {
   Map<String, dynamic> _soLuongTheoTrangThai = {};
   List<Map<String, dynamic>> _nhatKyHeThong = [];
   List<Map<String, dynamic>> _lichPhanCong = [];
+
+  // TODO: lấy tên người dùng thật từ session/auth thay vì chuỗi tạm này.
+  String _tenNguoiDung = '';
 
   @override
   void initState() {
@@ -186,6 +80,7 @@ class _TongQuanViewState extends State<TongQuanView> {
             soLuongRaw is Map ? Map<String, dynamic>.from(soLuongRaw) : {};
         _nhatKyHeThong = _readList(body['nhat_ky_he_thong']);
         _lichPhanCong = _readList(body['lich_phan_cong']);
+        _tenNguoiDung = body['ten_nguoi_dung']?.toString() ?? _tenNguoiDung;
         _isLoading = false;
       });
     } on ApiException catch (e) {
@@ -215,88 +110,163 @@ class _TongQuanViewState extends State<TongQuanView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _taiDashboard,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-        children: [
-          Text(
-            'Tổng quan',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          if (_error != null) ...[
-            _ErrorBanner(message: _error!),
-            const SizedBox(height: 10),
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: RefreshIndicator(
+        onRefresh: _taiDashboard,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          children: [
+            _LoiChao(tenNguoiDung: _tenNguoiDung),
+            SizedBox(height: AppSpacing.md),
+            if (_error != null) ...[
+              _ErrorBanner(message: _error!),
+              SizedBox(height: AppSpacing.md),
+            ],
+            _TienDoAlbumCard(
+              soLuongTheoTrangThai: _soLuongTheoTrangThai,
+              isLoading: _isLoading,
+            ),
+            SizedBox(height: AppSpacing.md),
+            _AlbumDangXuLyCard(
+              items: _albumDangXuLy,
+              isLoading: _isLoading,
+              onXemTatCa: () => _xemTatCa('/album'),
+              onXemAlbum: (id) =>
+                  Navigator.of(context).pushNamed('/album/detail/$id'),
+            ),
+            SizedBox(height: AppSpacing.md),
+            _PhanCongCard(
+              items: _lichPhanCong,
+              isLoading: _isLoading,
+              onXemTatCa: () => _xemTatCa('/lich-phan-cong'),
+            ),
+            SizedBox(height: AppSpacing.md),
+            _NhatKyHeThongCard(
+              items: _nhatKyHeThong,
+              isLoading: _isLoading,
+              onXemTatCa: () => _xemTatCa('/log'),
+            ),
           ],
-          _AlbumDangXuLyCard(
-            items: _albumDangXuLy,
-            isLoading: _isLoading,
-            onXemTatCa: () => _xemTatCa('/album'),
-            onXemAlbum: (id) =>
-                Navigator.of(context).pushNamed('/album/detail/$id'),
-          ),
-          const SizedBox(height: 10),
-          _NhatKyHeThongCard(
-            items: _nhatKyHeThong,
-            isLoading: _isLoading,
-            onXemTatCa: () => _xemTatCa('/log'),
-          ),
-          const SizedBox(height: 10),
-          _TienDoAlbumCard(
-            soLuongTheoTrangThai: _soLuongTheoTrangThai,
-            isLoading: _isLoading,
-          ),
-          const SizedBox(height: 10),
-          _PhanCongCard(
-            items: _lichPhanCong,
-            isLoading: _isLoading,
-            onXemTatCa: () => _xemTatCa('/lich-phan-cong'),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 // ============================================================
-// Thành phần dùng chung: header có tiêu đề + nút "Xem tất cả"
+// LỜI CHÀO ĐẦU TRANG
 // ============================================================
+class _LoiChao extends StatelessWidget {
+  const _LoiChao({required this.tenNguoiDung});
+  final String tenNguoiDung;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          tenNguoiDung.isEmpty ? 'Xin chào 👋' : 'Xin chào, $tenNguoiDung 👋',
+          style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Tổng quan tình hình hoạt động studio hôm nay',
+          style: TextStyle(fontSize: 13.5, color: onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// THÀNH PHẦN DÙNG CHUNG
+// ============================================================
+
+/// Khung thẻ dùng chung cho mọi khối trong trang Tổng quan. Dùng thẳng
+/// `Card` để thừa hưởng CardThemeData đã khai báo trong AppTheme (màu
+/// nền AppColors.surface/surfaceDark, viền AppColors.border/borderDark,
+/// bo góc AppSpacing.radiusMd) — tự đổi theo light/dark.
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
 class _CardHeader extends StatelessWidget {
   const _CardHeader({
     required this.title,
     this.onViewAll,
+    this.leading,
   });
 
   final String title;
   final VoidCallback? onViewAll;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style:
-              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: 8),
+            ],
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+          ],
         ),
         if (onViewAll != null)
           TextButton(
             style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             onPressed: onViewAll,
-            child: const Text('Xem tất cả →', style: TextStyle(fontSize: 13)),
+            child: const Text(
+              'Xem tất cả →',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
       ],
+    );
+  }
+}
+
+class _TieuDeIcon extends StatelessWidget {
+  const _TieuDeIcon({this.color = AppColors.primary});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 6,
+      height: 18,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(3),
+      ),
     );
   }
 }
@@ -312,7 +282,10 @@ class _EmptyState extends StatelessWidget {
       child: Center(
         child: Text(
           text,
-          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 13,
+          ),
         ),
       ),
     );
@@ -328,229 +301,20 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF1F2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFECDD3)),
+        color: AppColors.error.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: AppColors.error.withOpacity(0.3)),
       ),
       child: Text(
         message,
-        style: const TextStyle(color: Color(0xFFE11D48), fontSize: 13),
+        style: const TextStyle(color: AppColors.error, fontSize: 13),
       ),
     );
   }
 }
 
 // ============================================================
-// KHỐI 1: Album đang xử lý
-// ============================================================
-class _AlbumDangXuLyCard extends StatelessWidget {
-  const _AlbumDangXuLyCard({
-    required this.items,
-    required this.isLoading,
-    required this.onXemTatCa,
-    required this.onXemAlbum,
-  });
-
-  final List<Map<String, dynamic>> items;
-  final bool isLoading;
-  final VoidCallback onXemTatCa;
-  final ValueChanged<dynamic> onXemAlbum;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _CardHeader(title: 'Album đang xử lý', onViewAll: onXemTatCa),
-            const SizedBox(height: 6),
-            if (items.isEmpty && !isLoading)
-              const _EmptyState(text: 'Không có album đang xử lý')
-            else
-              for (final album in items)
-                _AlbumTile(
-                  album: album,
-                  onTap: () => onXemAlbum(album['id_album'] ?? album['id']),
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AlbumTile extends StatelessWidget {
-  const _AlbumTile({required this.album, required this.onTap});
-  final Map<String, dynamic> album;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tongSo = (album['tong_so_yeu_cau_chinh_sua'] as num?)?.toInt() ?? 0;
-    final dangCho = (album['so_yeu_cau_dang_cho_xu_ly'] as num?)?.toInt() ?? 0;
-    final soLanMienPhi =
-        (album['so_lan_chinh_sua_mien_phi'] as num?)?.toInt() ?? 0;
-    final daXongHet = tongSo > 0 && dangCho == 0;
-    final highlightColor = daXongHet ? const Color(0xFF059669) : null;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  album['ten_album']?.toString() ?? '--',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ngày tạo: ${_formatDate(album['created_at']?.toString())}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'YC chỉnh sửa đã chốt: $dangCho · '
-                  'Số lần miễn phí: $soLanMienPhi',
-                  style: TextStyle(fontSize: 12, color: highlightColor),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: const Size(0, 32),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            onPressed: onTap,
-            child: const Text('Xem', style: TextStyle(fontSize: 13)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// KHỐI 2: Nhật ký hệ thống (timeline)
-// ============================================================
-class _NhatKyHeThongCard extends StatelessWidget {
-  const _NhatKyHeThongCard({
-    required this.items,
-    required this.isLoading,
-    required this.onXemTatCa,
-  });
-
-  final List<Map<String, dynamic>> items;
-  final bool isLoading;
-  final VoidCallback onXemTatCa;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _CardHeader(title: 'Nhật ký hệ thống', onViewAll: onXemTatCa),
-            const SizedBox(height: 6),
-            if (items.isEmpty && !isLoading)
-              const _EmptyState(text: 'Không có log nào')
-            else
-              for (var i = 0; i < items.length; i++)
-                _LogTile(log: items[i], isLast: i == items.length - 1),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LogTile extends StatelessWidget {
-  const _LogTile({required this.log, required this.isLast});
-  final Map<String, dynamic> log;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final hanhDong = log['hanh_dong']?.toString() ?? '';
-    final ghiChu = log['ghi_chu']?.toString();
-    final icon = _hanhDongIcon[hanhDong] ?? '•';
-    final bg = _hanhDongIconBg[hanhDong] ?? Colors.grey.shade200;
-    final fg = _hanhDongIconFg[hanhDong] ?? Colors.grey;
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: bg),
-                alignment: Alignment.center,
-                child: Text(icon, style: TextStyle(color: fg, fontSize: 12)),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(width: 1, color: Colors.grey.shade200),
-                ),
-            ],
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10, top: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (ghiChu != null && ghiChu.isNotEmpty)
-                        ? ghiChu
-                        : _moTaLog(log),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatNgayGio(log['created_at']?.toString()),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).hintColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// KHỐI 3: Tiến độ xử lý Album (donut chart)
+// KHỐI 1: Tiến độ xử lý album (donut chart)
 // ============================================================
 class _TienDoAlbumCard extends StatelessWidget {
   const _TienDoAlbumCard({
@@ -563,65 +327,77 @@ class _TienDoAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final donutData = soLuongTheoTrangThai.entries.map((e) {
-      final info = _trangThaiMap[e.key];
+    final donutData = trangThaiMap.entries.map((e) {
+      final value = (soLuongTheoTrangThai[e.key] as num?)?.toDouble() ?? 0;
       return (
         key: e.key,
-        value: (e.value as num?)?.toDouble() ?? 0,
-        label: info?.label ?? e.key,
-        color: info?.color ?? const Color(0xFFCBD5E1),
+        value: value,
+        label: e.value.label,
+        color: e.value.color
       );
     }).toList();
 
     final tongSo = donutData.fold<double>(0, (sum, d) => sum + d.value);
+    final coDuLieu = tongSo > 0 || !isLoading;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _CardHeader(title: 'Tiến độ xử lý album'),
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _DonutChart(
-                  slices: donutData
-                      .map((d) => (value: d.value, color: d.color))
-                      .toList(),
-                  total: tongSo,
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _CardHeader(
+                title: 'Tiến độ xử lý album',
+                leading: _TieuDeIcon(),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: donutData.isEmpty && !isLoading
-                      ? Text(
-                          'Chưa có dữ liệu',
-                          style: TextStyle(
-                            color: Theme.of(context).hintColor,
-                            fontSize: 13,
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final item in donutData)
-                              _DonutLegendRow(
-                                color: item.color,
-                                label: item.label,
-                                value: item.value.toInt(),
-                                percent: tongSo > 0
-                                    ? (item.value / tongSo * 100).round()
-                                    : 0,
-                              ),
-                          ],
-                        ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _DonutChart(
+                slices: donutData
+                    .map((d) => (value: d.value, color: d.color))
+                    .toList(),
+                total: tongSo,
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: !coDuLieu
+                    ? Text(
+                        'Chưa có dữ liệu',
+                        style: TextStyle(
+                            color: colorScheme.onSurfaceVariant, fontSize: 13),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final item in donutData)
+                            _DonutLegendRow(
+                              color: item.color,
+                              label: item.label,
+                              value: item.value.toInt(),
+                              percent: tongSo > 0
+                                  ? (item.value / tongSo * 100).round()
+                                  : 0,
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -643,38 +419,35 @@ class _DonutLegendRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Container(
-            width: 9,
-            height: 9,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(shape: BoxShape.circle, color: color),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
-                color: Theme.of(context).hintColor,
-                fontSize: 13,
-              ),
+              style:
+                  const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
             ),
           ),
           Text(
             '$value',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           SizedBox(
-            width: 32,
+            width: 34,
             child: Text(
               '$percent%',
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).hintColor,
-              ),
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
         ],
@@ -683,9 +456,6 @@ class _DonutLegendRow extends StatelessWidget {
   }
 }
 
-/// Donut chart vẽ bằng CustomPainter — thay cho SVG path bên React
-/// (describeArc/polarToCartesian). Vẽ từng lát bằng drawArc nối liền
-/// nhau quanh vòng tròn, bắt đầu từ vị trí 12h.
 class _DonutChart extends StatelessWidget {
   const _DonutChart({required this.slices, required this.total});
 
@@ -694,7 +464,7 @@ class _DonutChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = 108.0;
+    const size = 116.0;
     return SizedBox(
       width: size,
       height: size,
@@ -705,7 +475,9 @@ class _DonutChart extends StatelessWidget {
             size: const Size(size, size),
             painter: _DonutChartPainter(
               slices: slices,
-              strokeWidth: 13,
+              strokeWidth: 14,
+              mauNenRanh:
+                  Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
           Column(
@@ -713,17 +485,14 @@ class _DonutChart extends StatelessWidget {
             children: [
               Text(
                 total.toInt().toString(),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               Text(
                 'Album',
                 style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).hintColor,
-                ),
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -734,10 +503,15 @@ class _DonutChart extends StatelessWidget {
 }
 
 class _DonutChartPainter extends CustomPainter {
-  _DonutChartPainter({required this.slices, required this.strokeWidth});
+  _DonutChartPainter({
+    required this.slices,
+    required this.strokeWidth,
+    required this.mauNenRanh,
+  });
 
   final List<({double value, Color color})> slices;
   final double strokeWidth;
+  final Color mauNenRanh;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -745,9 +519,8 @@ class _DonutChartPainter extends CustomPainter {
     final radius = (size.shortestSide - strokeWidth) / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Nền rãnh phía sau.
     final bgPaint = Paint()
-      ..color = Colors.grey.shade200
+      ..color = mauNenRanh
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
     canvas.drawCircle(center, radius, bgPaint);
@@ -756,7 +529,6 @@ class _DonutChartPainter extends CustomPainter {
     final total = nonZero.fold<double>(0, (sum, s) => sum + s.value);
     if (total <= 0 || nonZero.isEmpty) return;
 
-    // Chỉ 1 trạng thái có dữ liệu -> vòng tròn kín.
     if (nonZero.length == 1) {
       final paint = Paint()
         ..color = nonZero.first.color
@@ -766,7 +538,7 @@ class _DonutChartPainter extends CustomPainter {
       return;
     }
 
-    var startAngle = -pi / 2; // bắt đầu từ 12h, khớp bản React
+    var startAngle = -pi / 2;
     for (final s in nonZero) {
       final sweep = (s.value / total) * 2 * pi;
       final paint = Paint()
@@ -782,12 +554,236 @@ class _DonutChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
     return oldDelegate.slices != slices ||
-        oldDelegate.strokeWidth != strokeWidth;
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.mauNenRanh != mauNenRanh;
   }
 }
 
 // ============================================================
-// KHỐI 4: Phân công gần đây
+// KHỐI 2: Album đang xử lý
+// ============================================================
+class _AlbumDangXuLyCard extends StatelessWidget {
+  const _AlbumDangXuLyCard({
+    required this.items,
+    required this.isLoading,
+    required this.onXemTatCa,
+    required this.onXemAlbum,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final bool isLoading;
+  final VoidCallback onXemTatCa;
+  final ValueChanged<dynamic> onXemAlbum;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(title: 'Album đang xử lý', onViewAll: onXemTatCa),
+          const SizedBox(height: 10),
+          if (items.isEmpty && !isLoading)
+            const _EmptyState(text: 'Không có album đang xử lý')
+          else
+            for (var i = 0; i < items.length; i++) ...[
+              _AlbumTile(
+                album: items[i],
+                onTap: () => onXemAlbum(items[i]['id_album'] ?? items[i]['id']),
+              ),
+              if (i != items.length - 1) const SizedBox(height: 12),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AlbumTile extends StatelessWidget {
+  const _AlbumTile({required this.album, required this.onTap});
+  final Map<String, dynamic> album;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tongSo = (album['tong_so_yeu_cau_chinh_sua'] as num?)?.toInt() ?? 0;
+    final dangCho = (album['so_yeu_cau_dang_cho_xu_ly'] as num?)?.toInt() ?? 0;
+    final soLanMienPhi =
+        (album['so_lan_chinh_sua_mien_phi'] as num?)?.toInt() ?? 0;
+    final daXongHet = tongSo > 0 && dangCho == 0;
+
+    final trangThaiKey = album['trang_thai']?.toString() ?? 'dang_xu_ly';
+    final trangThai = trangThaiMap[trangThaiKey];
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        // Trước đây dùng AppColors.primaryLight.withOpacity(0.18) — hex
+        // cố định nên ở dark mode bị pha ra màu xám xịt, khó nhìn.
+        // Đổi sang colorScheme.primaryContainer (tự đổi
+        // primaryLight ↔ primaryDark theo theme) để luôn ra tông ấm hợp
+        // với nền, dù light hay dark.
+        color: colorScheme.primaryContainer.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        // Trước đây AppColors.border cố định (chỉ đúng ở light) — đổi
+        // sang colorScheme.outline để tự chuyển border/borderDark.
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TÊN ALBUM',
+                      style: TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      album['ten_album']?.toString() ?? '--',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 17),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (trangThai != null) _TrangThaiBadge(info: trangThai),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _ThongKeAlbumCot(
+                  nhan: 'Ngày tạo',
+                  giaTri: formatDate(album['created_at']?.toString()),
+                ),
+              ),
+              _NganCotDoc(mau: colorScheme.outline),
+              Expanded(
+                child: _ThongKeAlbumCot(
+                  nhan: 'Y/c đã chốt',
+                  giaTri: '$dangCho',
+                  mauGiaTri: daXongHet ? AppColors.success : null,
+                ),
+              ),
+              _NganCotDoc(mau: colorScheme.outline),
+              Expanded(
+                child: _ThongKeAlbumCot(
+                  nhan: 'Sửa miễn phí',
+                  giaTri: '$soLanMienPhi lần',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onTap,
+              icon: const Text('Xem chi tiết album',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Icon(Icons.chevron_right_rounded, size: 20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrangThaiBadge extends StatelessWidget {
+  const _TrangThaiBadge({required this.info});
+  final TrangThaiInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: info.color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration:
+                BoxDecoration(shape: BoxShape.circle, color: info.color),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            info.label,
+            style: TextStyle(
+                color: info.color, fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThongKeAlbumCot extends StatelessWidget {
+  const _ThongKeAlbumCot(
+      {required this.nhan, required this.giaTri, this.mauGiaTri});
+  final String nhan;
+  final String giaTri;
+  final Color? mauGiaTri;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          nhan,
+          style: TextStyle(
+              fontSize: 11.5,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          giaTri,
+          style: TextStyle(
+              fontWeight: FontWeight.w700, fontSize: 14, color: mauGiaTri),
+        ),
+      ],
+    );
+  }
+}
+
+class _NganCotDoc extends StatelessWidget {
+  const _NganCotDoc({required this.mau});
+  final Color mau;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 30,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      color: mau,
+    );
+  }
+}
+
+// ============================================================
+// KHỐI 3: Phân công gần đây
 // ============================================================
 class _PhanCongCard extends StatelessWidget {
   const _PhanCongCard({
@@ -802,21 +798,20 @@ class _PhanCongCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _CardHeader(title: 'Phân công gần đây', onViewAll: onXemTatCa),
-            const SizedBox(height: 6),
-            if (items.isEmpty && !isLoading)
-              const _EmptyState(text: 'Chưa có phân công nào')
-            else
-              for (final pc in items) _PhanCongTile(item: pc),
-          ],
-        ),
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(title: 'Phân công gần đây', onViewAll: onXemTatCa),
+          const SizedBox(height: 10),
+          if (items.isEmpty && !isLoading)
+            const _EmptyState(text: 'Chưa có phân công nào')
+          else
+            for (var i = 0; i < items.length; i++) ...[
+              _PhanCongTile(item: items[i]),
+              if (i != items.length - 1) const SizedBox(height: 10),
+            ],
+        ],
       ),
     );
   }
@@ -828,26 +823,30 @@ class _PhanCongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final seed = (item['tai_khoan_nhan_vien_id'] ?? '').toString();
-    final idx = _avatarIndex(seed);
+    final idx = avatarIndex(seed);
     final tenAlbum = item['ten_album']?.toString() ?? '--';
     final tenNhanVien = item['nhan_vien_ho_ten']?.toString() ?? '--';
     final laNguoiBaoCao = item['la_nguoi_bao_cao'] == true;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 17,
-            backgroundColor: _avatarPalette[idx],
+            backgroundColor: avatarPalette[idx],
             child: Text(
-              _layChuCaiDau(item['nhan_vien_ho_ten']?.toString()),
+              layChuCaiDau(item['nhan_vien_ho_ten']?.toString()),
               style: TextStyle(
-                color: _avatarPaletteFg[idx],
-                fontWeight: FontWeight.w600,
+                color: avatarPaletteFg[idx],
+                fontWeight: FontWeight.w700,
                 fontSize: 11,
               ),
             ),
@@ -859,55 +858,161 @@ class _PhanCongTile extends StatelessWidget {
               children: [
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6,
-                  runSpacing: 2,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
-                    Text.rich(
-                      TextSpan(
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                        children: [
-                          TextSpan(text: tenAlbum),
-                          TextSpan(
-                            text: ': $tenNhanVien',
-                            style: TextStyle(
-                              fontWeight: FontWeight.normal,
-                              color: theme.hintColor,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      '$tenAlbum: $tenNhanVien',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: AppColors.primary,
                       ),
                     ),
                     if (laNguoiBaoCao)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1),
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFFBEB),
+                          // Dùng primaryContainer thay vì primaryLight
+                          // cố định để badge cũng tự đổi tông theo dark
+                          // mode như phần album tile ở trên.
+                          color: colorScheme.primaryContainer.withOpacity(0.35),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: const Color(0xFFFDE68A)),
+                          border:
+                              Border.all(color: colorScheme.primaryContainer),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Người báo cáo',
                           style: TextStyle(
                             fontSize: 10,
-                            color: Color(0xFFB45309),
-                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_formatNgayGio(item['thoi_gian_bat_dau']?.toString())}'
-                  ' - '
-                  '${_formatNgayGio(item['thoi_gian_ket_thuc']?.toString())}',
-                  style: TextStyle(fontSize: 11, color: theme.hintColor),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.access_time_rounded,
+                        size: 13, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${formatNgayGio(item['thoi_gian_bat_dau']?.toString())}'
+                        ' - '
+                        '${formatNgayGio(item['thoi_gian_ket_thuc']?.toString())}',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: colorScheme.onSurfaceVariant),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// KHỐI 4: Nhật ký hệ thống (timeline)
+// ============================================================
+class _NhatKyHeThongCard extends StatelessWidget {
+  const _NhatKyHeThongCard({
+    required this.items,
+    required this.isLoading,
+    required this.onXemTatCa,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final bool isLoading;
+  final VoidCallback onXemTatCa;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(title: 'Nhật ký hệ thống', onViewAll: onXemTatCa),
+          const SizedBox(height: 6),
+          if (items.isEmpty && !isLoading)
+            const _EmptyState(text: 'Không có log nào')
+          else
+            for (var i = 0; i < items.length; i++)
+              _LogTile(log: items[i], isLast: i == items.length - 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogTile extends StatelessWidget {
+  const _LogTile({required this.log, required this.isLast});
+  final Map<String, dynamic> log;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final hanhDong = log['hanh_dong']?.toString() ?? '';
+    final ghiChu = log['ghi_chu']?.toString();
+    final icon = hanhDongIcon[hanhDong] ?? Icons.circle;
+    final mauNen =
+        hanhDongMauNen[hanhDong] ?? Theme.of(context).colorScheme.outline;
+    final duongKe =
+        Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration:
+                    BoxDecoration(shape: BoxShape.circle, color: mauNen),
+                alignment: Alignment.center,
+                child: Icon(icon, color: Colors.white, size: 15),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(width: 2, color: duongKe),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14, top: 3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (ghiChu != null && ghiChu.isNotEmpty)
+                        ? ghiChu
+                        : moTaLog(log),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    formatNgayGio(log['created_at']?.toString()),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
