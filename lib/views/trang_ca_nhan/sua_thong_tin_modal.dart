@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
@@ -79,7 +80,8 @@ Future<void> showSuaThongTinModal(
 
 /// Bảng màu preset để chọn nhanh (thay cho ColorPicker tuỳ biến bên
 /// React mà mình chưa có source). Vẫn cho phép nhập hex tuỳ ý qua ô
-/// "Mã màu khác" bên dưới bảng preset.
+/// "Mã màu khác" bên dưới bảng preset, HOẶC bấm nút "+" để mở bánh xe
+/// màu (flutter_colorpicker) chọn tự do như <input type="color"> bên web.
 const _bangMauPreset = [
   '#6366F1', // indigo
   '#0EA5E9', // sky
@@ -125,6 +127,15 @@ class _SuaThongTinController extends ChangeNotifier {
     mauSacCtrl.text = hex.toUpperCase();
   }
 
+  /// Set màu từ bánh xe màu tự do (Color object -> chuỗi hex #RRGGBB).
+  void chonMauTuyChinh(Color mau) {
+    final hex = '#'
+        '${mau.red.toRadixString(16).padLeft(2, '0')}'
+        '${mau.green.toRadixString(16).padLeft(2, '0')}'
+        '${mau.blue.toRadixString(16).padLeft(2, '0')}';
+    mauSacCtrl.text = hex.toUpperCase();
+  }
+
   bool _validate() {
     loiHoTen = hoTenCtrl.text.trim().isEmpty ? 'Vui lòng nhập họ tên' : null;
 
@@ -159,21 +170,10 @@ class _SuaThongTinController extends ChangeNotifier {
       final ketQuaCuoi = ketQua.isNotEmpty ? ketQua : payload;
 
       // ⚠️ FIX "_dependents.isEmpty" (Failed assertion) khi đóng modal:
-      //
-      // Trước đây gọi `onSuccess(...)` (-> AuthStore.notifyListeners() ->
-      // rebuild TrangCaNhanView phía dưới) NGAY sau `Navigator.pop()`,
-      // trong CÙNG một frame/microtask với lúc route của modal bắt đầu
-      // gỡ bỏ (animation đóng vẫn đang chạy ~250ms, các Element bên
-      // trong modal — Theme.of/MediaQuery.of/ListenableBuilder — vẫn
-      // còn mounted). Việc ép rebuild cây bên dưới đúng lúc framework
-      // đang xử lý gỡ route phía trên gây ra race giữa "một Element bị
-      // unmount" và "vẫn còn Element khác phụ thuộc vào nó", dẫn tới
-      // assertion `_dependents.isEmpty` (màn hình đỏ) khi đóng modal.
-      //
-      // -> Đóng modal trước, rồi dời việc cập nhật AuthStore sang sau
-      // khi frame hiện tại đã render xong (addPostFrameCallback), để 2
-      // việc "đóng UI" và "cập nhật global state" không tranh chấp
-      // trong cùng một frame.
+      // đóng modal trước, rồi dời việc cập nhật AuthStore sang sau khi
+      // frame hiện tại đã render xong (addPostFrameCallback), để 2 việc
+      // "đóng UI" và "cập nhật global state" không tranh chấp trong
+      // cùng một frame (chi tiết xem lịch sử chat / commit trước).
       Navigator.of(context).pop();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         onSuccess(ketQuaCuoi);
@@ -227,6 +227,58 @@ class _SuaThongTinForm extends StatelessWidget {
   Color _hex(String hex) {
     final v = hex.replaceFirst('#', '').padLeft(6, '0');
     return Color(int.parse('FF$v', radix: 16));
+  }
+
+  /// Mở dialog bánh xe màu tự do (giống <input type="color"> bên web).
+  /// Dùng package flutter_colorpicker (nhớ thêm vào pubspec.yaml:
+  /// flutter_colorpicker: ^1.1.0).
+  ///
+  /// ⚠️ Dùng `HueRingPicker` thay vì `ColorPicker` (kiểu ô vuông HSV):
+  /// ô vuông HSV của `ColorPicker` có lúc render sai khi nằm lồng trong
+  /// AlertDialog + SingleChildScrollView — lớp gradient màu theo hue
+  /// không lên đúng, chỉ còn lại gradient trắng-đen (nhìn như "mất
+  /// màu"). `HueRingPicker` dùng cơ chế vẽ khác (vòng tròn hue +
+  /// paint riêng), ổn định và không bị lỗi này.
+  void _moBanhXeMau(BuildContext context) {
+    final mauHienTai =
+        RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(controller.mauSacCtrl.text.trim())
+            ? _hex(controller.mauSacCtrl.text.trim())
+            : _hex(_SuaThongTinController._mauSacMacDinh);
+
+    Color mauDangChon = mauHienTai;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Chọn màu tuỳ chỉnh'),
+        contentPadding: const EdgeInsets.all(16),
+        content: SingleChildScrollView(
+          child: SizedBox(
+            width: 280,
+            child: HueRingPicker(
+              pickerColor: mauHienTai,
+              onColorChanged: (mau) => mauDangChon = mau,
+              displayThumbColor: true,
+              enableAlpha: false,
+              portraitOnly: true,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Huỷ'),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.chonMauTuyChinh(mauDangChon);
+              Navigator.of(dialogCtx).pop();
+            },
+            child: const Text('Chọn'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -293,6 +345,10 @@ class _SuaThongTinForm extends StatelessWidget {
                         hex.toUpperCase(),
                     onTap: () => controller.chonMauPreset(hex),
                   ),
+                // Nút mở bánh xe màu tự do — tương đương
+                // <input type="color"> bên React, không giới hạn 8 màu
+                // preset như trước.
+                _NutMoBanhXeMau(onTap: () => _moBanhXeMau(context)),
               ],
             ),
             const SizedBox(height: 12),
@@ -408,16 +464,36 @@ class _TruongChiXem extends StatelessWidget {
               border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
             ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 15, color: const Color(0xFF94A3B8)),
-          const SizedBox(width: 8),
-          Text(label,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-          const Spacer(),
-          Flexible(
+          // Cột nhãn: tỉ lệ cố định (flex) thay vì co giãn tự do theo
+          // độ dài chữ, để cột giá trị bên phải luôn bắt đầu tại cùng
+          // một vị trí trên mọi dòng (không còn so le như trước).
+          Expanded(
+            flex: 4,
+            child: Row(
+              children: [
+                Icon(icon, size: 15, color: const Color(0xFF94A3B8)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style:
+                        const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Cột giá trị: canh TRÁI trong phần không gian riêng của nó
+          // -> mọi giá trị bắt đầu thẳng hàng nhau.
+          Expanded(
+            flex: 5,
             child: Text(
               (value == null || value!.isEmpty) ? 'Chưa cập nhật' : value!,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.left,
               style:
                   const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
             ),
@@ -465,6 +541,49 @@ class _SwatchMau extends StatelessWidget {
         child: dangChon
             ? const Icon(Icons.check, size: 16, color: Colors.white)
             : null,
+      ),
+    );
+  }
+}
+
+/// Nút tròn "+" cuối bảng preset — mở bánh xe màu tự do
+/// (tương đương <input type="color"> bên web), không giới hạn 8 màu.
+class _NutMoBanhXeMau extends StatelessWidget {
+  const _NutMoBanhXeMau({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+          gradient: const SweepGradient(
+            colors: [
+              Color(0xFFEF4444),
+              Color(0xFFF59E0B),
+              Color(0xFF10B981),
+              Color(0xFF0EA5E9),
+              Color(0xFF8B5CF6),
+              Color(0xFFEC4899),
+              Color(0xFFEF4444),
+            ],
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 14,
+          height: 14,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.add, size: 11, color: Color(0xFF475569)),
+        ),
       ),
     );
   }

@@ -292,15 +292,36 @@ class _InfoRow extends StatelessWidget {
                   bottom: BorderSide(color: Theme.of(context).dividerColor)),
             ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 18, color: hint),
-          const SizedBox(width: 10),
-          Text(label, style: TextStyle(fontSize: 13, color: hint)),
-          const Spacer(),
-          Flexible(
+          // Cột nhãn: giữ tỉ lệ cố định (flex) thay vì co giãn tự do
+          // theo độ dài chữ, để cột giá trị bên phải luôn bắt đầu tại
+          // cùng một vị trí trên mọi dòng (thay vì so le như trước).
+          Expanded(
+            flex: 4,
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: hint),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(fontSize: 13, color: hint),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Cột giá trị: canh TRÁI trong phần không gian riêng của nó
+          // (thay vì canh phải theo độ dài chữ) -> mọi giá trị bắt đầu
+          // thẳng hàng nhau, không còn so le.
+          Expanded(
+            flex: 5,
             child: Text(
               (value == null || value!.isEmpty) ? 'Chưa cập nhật' : value!,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.left,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
