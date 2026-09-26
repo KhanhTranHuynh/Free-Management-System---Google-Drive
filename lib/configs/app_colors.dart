@@ -26,6 +26,13 @@ class AppColors {
   static const Color error = Color(0xFFF1595C);
   static const Color success = Color(0xFF50C793);
 
+  // ===== Info (xanh dương) =====
+  // Trước đây mỗi màn (Tổng quan, Nhật ký hệ thống) tự khai báo riêng 1
+  // hằng số "mauThongTin = Color(0xFF3B82F6)" giống hệt nhau vì design
+  // token chưa có màu "info". Gộp về đây làm 1 nguồn duy nhất — nơi nào
+  // cần màu info (vd hành động "tạo mới") thì dùng AppColors.info.
+  static const Color info = Color(0xFF3B82F6);
+
   // ===== Dark mode =====
   static const Color backgroundDark = Color(0xFF0F172A); // gray.900
   static const Color surfaceDark = Color(0xFF1E293B); // gray.800

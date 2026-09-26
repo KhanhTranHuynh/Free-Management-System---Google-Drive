@@ -9,9 +9,13 @@ import '../../apis/services/nhat_ky_he_thong_api.dart';
 // app_spacing.dart trong dự án.
 import '../../configs/app_colors.dart';
 import '../../configs/app_spacing.dart';
-import '../../utils/nhat_ky_he_thong_util.dart';
+import '../../utils/avatar_util.dart';
+import '../../utils/hanh_dong_util.dart';
 import '../../utils/time_util.dart';
 import '../../components/o_tim_kiem.dart';
+import '../../components/chip_loc.dart';
+import '../../components/empty_state.dart';
+import '../../components/error_retry.dart';
 
 /// Danh sách nhật ký hệ thống. Read-only: không sort (BE cố định
 /// ORDER BY created_at DESC), lọc theo hành động qua API + tìm kiếm
@@ -20,6 +24,14 @@ import '../../components/o_tim_kiem.dart';
 ///
 /// Không đọc quyền AuthStore vì module này không có màn khác gate
 /// quyền (route "/nhat-ky-he-thong" tự chặn ở tầng khác nếu cần).
+///
+/// FIX (chống phân mảnh): file `nhat_ky_he_thong_util.dart` cũ đã bị
+/// XOÁ — toàn bộ nội dung của nó (avatar theo tên, màu/icon/nhãn theo
+/// hành động) trùng lặp gần như 100% với `tong_quan_util.dart` và
+/// component `_ChipLoc` bên dưới cũng trùng với `components/chip_loc.dart`
+/// đã có sẵn trong project. Giờ view này import trực tiếp 2 file dùng
+/// chung `avatar_util.dart` / `hanh_dong_util.dart` và dùng lại
+/// `ChipLoc` thay vì tự định nghĩa lại.
 class NhatKyHeThongListView extends StatefulWidget {
   const NhatKyHeThongListView({super.key});
 
@@ -300,11 +312,17 @@ class _NhatKyHeThongListViewState extends State<NhatKyHeThongListView> {
                     final soDem = key == null
                         ? _tongSoTatCa
                         : (_demTheoHanhDong[key] ?? 0);
-                    return _ChipLoc(
+                    // FIX: dùng ChipLoc dùng chung (components/chip_loc.dart)
+                    // thay vì _ChipLoc riêng của file này — 2 widget này
+                    // trước đây gần như giống hệt nhau. soDemDangNgoac:
+                    // true để giữ đúng dạng "(5)" như thiết kế gốc của
+                    // màn này khi chưa chọn.
+                    return ChipLoc(
                       label: opt.$2,
                       soDem: soDem,
                       mau: key == null ? null : hanhDongMau[key],
                       dangChon: dangChon,
+                      soDemDangNgoac: true,
                       onTap: () => _onFilterHanhDongChanged(key),
                     );
                   },
@@ -323,24 +341,16 @@ class _NhatKyHeThongListViewState extends State<NhatKyHeThongListView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // FIX: dùng ErrorRetry dùng chung thay vì Center(...) viết tay —
+    // cùng giao diện với màn Nhân viên.
     if (_error != null && _items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!),
-            const SizedBox(height: 12),
-            OutlinedButton(
-                onPressed: _taiLaiTuDau, child: const Text('Thử lại')),
-          ],
-        ),
-      );
+      return ErrorRetry(message: _error!, onRetry: _taiLaiTuDau);
     }
 
     final danhSach = _danhSachHienThi;
 
     if (danhSach.isEmpty) {
-      return const Center(child: Text('Không có dữ liệu'));
+      return const EmptyState(text: 'Không có dữ liệu');
     }
 
     final rows = _xayDungRows(danhSach);
@@ -421,87 +431,6 @@ class _Header extends StatelessWidget {
 }
 
 // ============================================================
-// CHIP LỌC THEO HÀNH ĐỘNG
-// ============================================================
-class _ChipLoc extends StatelessWidget {
-  const _ChipLoc({
-    required this.label,
-    required this.soDem,
-    required this.mau,
-    required this.dangChon,
-    required this.onTap,
-  });
-
-  final String label;
-  final int soDem;
-  final Color? mau; // null = chip "Tất cả"
-  final bool dangChon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: dangChon ? AppColors.primary : colorScheme.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: dangChon ? null : Border.all(color: colorScheme.outline),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!dangChon && mau != null) ...[
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: mau),
-              ),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: dangChon ? Colors.white : null,
-              ),
-            ),
-            const SizedBox(width: 6),
-            if (dangChon)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$soDem',
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white),
-                ),
-              )
-            else
-              Text(
-                '($soDem)',
-                style: TextStyle(
-                    fontSize: 12.5, color: colorScheme.onSurfaceVariant),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
 // HEADER NHÓM NGÀY ("HÔM NAY, 25/9/2026"...)
 // ============================================================
 class _NhomNgayHeader extends StatelessWidget {
@@ -554,7 +483,9 @@ class _NhatKyTile extends StatelessWidget {
 
     final hanhDongKey = item['hanh_dong']?.toString() ?? '';
     final mau = hanhDongMau[hanhDongKey] ?? colorScheme.outline;
-    final icon = hanhDongIcon[hanhDongKey] ?? Icons.circle_outlined;
+    // Dùng bộ icon riêng cho danh sách (khác bộ icon timeline bên Tổng
+    // quan) — xem giải thích ở đầu hanh_dong_util.dart.
+    final icon = hanhDongIconDanhSach[hanhDongKey] ?? Icons.circle_outlined;
 
     final tieuDe = _safeValue(
         'hanh_dong_hien_thi', hanhDongTieuDe[hanhDongKey] ?? hanhDongKey);

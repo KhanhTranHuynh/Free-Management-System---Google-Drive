@@ -13,11 +13,12 @@ import '../../stores/auth_store.dart';
 // trong dự án.
 import '../../configs/app_colors.dart';
 import '../../utils/avatar_util.dart';
-// TODO: chỉnh lại đường dẫn cho khớp vị trí thật của file chứa
-// showAppModal/AppModalType (app_modal.dart) trong dự án.
 import '../../components/app_modal.dart';
 import '../../components/o_tim_kiem.dart';
 import '../../components/chip_loc.dart';
+import '../../components/empty_state.dart';
+import '../../components/error_retry.dart';
+import '../../components/status_indicator.dart';
 import 'add_nhan_vien.dart';
 import 'edit_nhan_vien.dart';
 
@@ -682,21 +683,14 @@ class _NhanVienListViewState extends State<NhanVienListView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // FIX: dùng ErrorRetry/EmptyState dùng chung thay vì Center(...) viết
+    // tay riêng cho màn này — cùng 1 giao diện với Nhật ký hệ thống.
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!),
-            const SizedBox(height: 12),
-            OutlinedButton(onPressed: _taiLai, child: const Text('Thử lại')),
-          ],
-        ),
-      );
+      return ErrorRetry(message: _error!, onRetry: _taiLai);
     }
 
     if (_items.isEmpty) {
-      return const Center(child: Text('Không có dữ liệu'));
+      return const EmptyState(text: 'Không có dữ liệu');
     }
 
     return RefreshIndicator(
@@ -796,66 +790,6 @@ class _Header extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-// ============================================================
-// Ô TÌM KIẾM dạng viên thuốc, có nút "Tìm" gắn liền bên phải (đúng mẫu).
-// ============================================================
-class _ThanhTimKiem extends StatelessWidget {
-  const _ThanhTimKiem({
-    required this.controller,
-    required this.onChanged,
-    required this.onTimNgay,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onTimNgay;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colorScheme.outline),
-      ),
-      padding: const EdgeInsets.only(left: 14, right: 6),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded,
-              color: colorScheme.onSurfaceVariant, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              onSubmitted: (_) => onTimNgay(),
-              decoration: const InputDecoration(
-                hintText: 'Tìm kiếm theo tên, số điện thoại...',
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: onTimNgay,
-            style: TextButton.styleFrom(
-              backgroundColor: colorScheme.surfaceContainerHigh,
-              foregroundColor: colorScheme.onSurface,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            child: const Text('Tìm',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -973,7 +907,16 @@ class _NhanVienCard extends StatelessWidget {
                                       ? tenVaiTroList[i]
                                       : maVaiTroList[i],
                                 ),
-                              _TrangThaiDot(hoatDong: trangThai),
+                              // Trước là _TrangThaiDot riêng cho màn này ->
+                              // dùng StatusIndicator(filled: false) dùng
+                              // chung (cùng widget với badge trạng thái
+                              // album ở Tổng quan, chỉ khác filled).
+                              StatusIndicator(
+                                label: trangThai ? 'Hoạt động' : 'Khóa',
+                                color: trangThai
+                                    ? AppColors.success
+                                    : const Color(0xFF9CA3AF),
+                              ),
                             ],
                           ),
                         ],
@@ -1083,36 +1026,6 @@ class _VaiTroBadge extends StatelessWidget {
         ten,
         style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12),
       ),
-    );
-  }
-}
-
-// ============================================================
-// CHẤM TRẠNG THÁI ("• Hoạt động" / "• Khóa")
-// ============================================================
-class _TrangThaiDot extends StatelessWidget {
-  const _TrangThaiDot({required this.hoatDong});
-
-  final bool hoatDong;
-
-  @override
-  Widget build(BuildContext context) {
-    final mau = hoatDong ? AppColors.success : const Color(0xFF9CA3AF);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: mau),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          hoatDong ? 'Hoạt động' : 'Khóa',
-          style:
-              TextStyle(color: mau, fontWeight: FontWeight.w700, fontSize: 12),
-        ),
-      ],
     );
   }
 }

@@ -9,6 +9,9 @@ import '../../apis/services/tong_quan_api.dart';
 // app_spacing.dart trong dự án (đang giả định cùng cấp với apis/ ở lib/configs/).
 import '../../configs/app_colors.dart';
 import '../../configs/app_spacing.dart';
+import '../../components/empty_state.dart';
+import '../../components/error_retry.dart';
+import '../../components/status_indicator.dart';
 import '../../utils/tong_quan_util.dart';
 import '../../utils/time_util.dart';
 
@@ -20,7 +23,10 @@ import '../../utils/time_util.dart';
 /// Toàn bộ màu trong file này lấy từ AppColors / Theme.of(context) (áp
 /// dụng theo AppTheme.light/dark đã khai báo) thay vì hex cứng, để khi
 /// cần đổi bộ nhận diện chỉ phải sửa app_colors.dart. Các hằng số/hàm
-/// thuần (map trạng thái, format ngày, avatar...) nằm ở tong_quan_util.dart.
+/// thuần (map trạng thái, format ngày, avatar...) nằm ở tong_quan_util.dart
+/// — file này giờ chỉ re-export từ 2 file dùng CHUNG với các màn khác:
+/// avatar_util.dart (avatar theo tên) và hanh_dong_util.dart (màu/icon/
+/// nhãn theo hành động), tránh lặp lại định nghĩa như trước.
 class TongQuanView extends StatefulWidget {
   const TongQuanView({super.key});
 
@@ -121,7 +127,7 @@ class _TongQuanViewState extends State<TongQuanView> {
             _LoiChao(tenNguoiDung: _tenNguoiDung),
             SizedBox(height: AppSpacing.md),
             if (_error != null) ...[
-              _ErrorBanner(message: _error!),
+              ErrorBanner(message: _error!),
               SizedBox(height: AppSpacing.md),
             ],
             _TienDoAlbumCard(
@@ -183,7 +189,9 @@ class _LoiChao extends StatelessWidget {
 }
 
 // ============================================================
-// THÀNH PHẦN DÙNG CHUNG
+// THÀNH PHẦN DÙNG CHUNG TRONG PHẠM VI FILE NÀY
+// (EmptyState/ErrorBanner/StatusIndicator đã chuyển ra components/ dùng
+// chung toàn app — xem import ở đầu file)
 // ============================================================
 
 /// Khung thẻ dùng chung cho mọi khối trong trang Tổng quan. Dùng thẳng
@@ -266,48 +274,6 @@ class _TieuDeIcon extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(3),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(color: AppColors.error.withOpacity(0.3)),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(color: AppColors.error, fontSize: 13),
       ),
     );
   }
@@ -584,7 +550,7 @@ class _AlbumDangXuLyCard extends StatelessWidget {
           _CardHeader(title: 'Album đang xử lý', onViewAll: onXemTatCa),
           const SizedBox(height: 10),
           if (items.isEmpty && !isLoading)
-            const _EmptyState(text: 'Không có album đang xử lý')
+            const EmptyState(text: 'Không có album đang xử lý')
           else
             for (var i = 0; i < items.length; i++) ...[
               _AlbumTile(
@@ -660,7 +626,14 @@ class _AlbumTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trangThai != null) _TrangThaiBadge(info: trangThai),
+              // Trước là _TrangThaiBadge riêng cho màn này -> dùng
+              // StatusIndicator(filled: true) dùng chung.
+              if (trangThai != null)
+                StatusIndicator(
+                  label: trangThai.label,
+                  color: trangThai.color,
+                  filled: true,
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -698,39 +671,6 @@ class _AlbumTile extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w700)),
               label: const Icon(Icons.chevron_right_rounded, size: 20),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TrangThaiBadge extends StatelessWidget {
-  const _TrangThaiBadge({required this.info});
-  final TrangThaiInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: info.color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration:
-                BoxDecoration(shape: BoxShape.circle, color: info.color),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            info.label,
-            style: TextStyle(
-                color: info.color, fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -805,7 +745,7 @@ class _PhanCongCard extends StatelessWidget {
           _CardHeader(title: 'Phân công gần đây', onViewAll: onXemTatCa),
           const SizedBox(height: 10),
           if (items.isEmpty && !isLoading)
-            const _EmptyState(text: 'Chưa có phân công nào')
+            const EmptyState(text: 'Chưa có phân công nào')
           else
             for (var i = 0; i < items.length; i++) ...[
               _PhanCongTile(item: items[i]),
@@ -944,7 +884,7 @@ class _NhatKyHeThongCard extends StatelessWidget {
           _CardHeader(title: 'Nhật ký hệ thống', onViewAll: onXemTatCa),
           const SizedBox(height: 6),
           if (items.isEmpty && !isLoading)
-            const _EmptyState(text: 'Không có log nào')
+            const EmptyState(text: 'Không có log nào')
           else
             for (var i = 0; i < items.length; i++)
               _LogTile(log: items[i], isLast: i == items.length - 1),
@@ -963,9 +903,12 @@ class _LogTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hanhDong = log['hanh_dong']?.toString() ?? '';
     final ghiChu = log['ghi_chu']?.toString();
-    final icon = hanhDongIcon[hanhDong] ?? Icons.circle;
+    // Đổi tên biến từ hanhDongIcon -> hanhDongIconTimeline vì
+    // hanh_dong_util.dart giờ tách rõ 2 bộ icon theo bối cảnh hiển thị
+    // (xem giải thích ở đầu hanh_dong_util.dart).
+    final icon = hanhDongIconTimeline[hanhDong] ?? Icons.circle;
     final mauNen =
-        hanhDongMauNen[hanhDong] ?? Theme.of(context).colorScheme.outline;
+        hanhDongMau[hanhDong] ?? Theme.of(context).colorScheme.outline;
     final duongKe =
         Theme.of(context).colorScheme.outlineVariant.withOpacity(0.4);
 
