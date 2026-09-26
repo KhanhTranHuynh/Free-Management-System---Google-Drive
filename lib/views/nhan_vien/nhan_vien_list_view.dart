@@ -13,79 +13,13 @@ import '../../stores/auth_store.dart';
 // trong dự án.
 import '../../configs/app_colors.dart';
 import '../../utils/avatar_util.dart';
-import '../../components/app_modal.dart';
 import '../../components/o_tim_kiem.dart';
-import '../../components/chip_loc.dart';
+import '../../components/modal_loc_sap_xep.dart';
 import '../../components/empty_state.dart';
 import '../../components/error_retry.dart';
 import '../../components/status_indicator.dart';
 import 'add_nhan_vien.dart';
 import 'edit_nhan_vien.dart';
-
-// ============================================================
-// 1 DÒNG "SẮP XẾP THEO" trong modal Lọc & sắp xếp — bấm để chọn cột sắp
-// xếp; nếu đang chọn cột này rồi thì hiện icon mũi tên theo chiều hiện
-// tại (tăng dần ↑ / giảm dần ↓). Bấm lại cột đang chọn sẽ đảo chiều (xử
-// lý ở _onSortColumnTap, widget này chỉ hiển thị).
-// ============================================================
-class _DongSapXep extends StatelessWidget {
-  const _DongSapXep({
-    required this.label,
-    required this.dangChon,
-    required this.tangDan,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool dangChon;
-  final bool tangDan;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            Icon(
-              dangChon
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              size: 18,
-              color:
-                  dangChon ? AppColors.primary : colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: dangChon ? FontWeight.w700 : FontWeight.w500,
-                  color: dangChon
-                      ? colorScheme.onSurface
-                      : colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            if (dangChon)
-              Icon(
-                tangDan
-                    ? Icons.arrow_upward_rounded
-                    : Icons.arrow_downward_rounded,
-                size: 16,
-                color: AppColors.primary,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// Danh sách nhân viên. Toàn bộ state (search/filter/sort/phân trang) +
 /// gọi API nằm cục bộ trong View này — AuthStore chỉ được đọc để lấy quyền
@@ -95,6 +29,13 @@ class _DongSapXep extends StatelessWidget {
 /// UI dạng card theo mẫu thiết kế mới. Có 2 chiều lọc (vai trò + trạng
 /// thái) — mẫu gốc chỉ vẽ 1 hàng chip theo vai trò nên hàng trạng thái
 /// được thêm thêm bên dưới, nhỏ và nhạt hơn để không lấn vai trò chính.
+///
+/// UI FIX: modal "Lọc & sắp xếp" trước đây vẽ tay riêng cho màn này (danh
+/// sách hàng bấm đảo chiều cho sắp xếp + Wrap chip nhiều dòng cho từng bộ
+/// lọc). Giờ dùng component dùng chung `showModalLocSapXep`
+/// (components/modal_loc_sap_xep.dart) để các màn khác (Nhật ký hệ
+/// thống...) tái dùng được: sắp xếp gộp thành 1 dropdown (select), mỗi
+/// nhóm lọc hiện đúng 1 dòng (2 nhóm lọc = 2 dòng).
 class NhanVienListView extends StatefulWidget {
   const NhanVienListView({super.key});
 
@@ -166,6 +107,37 @@ class _NhanVienListViewState extends State<NhanVienListView> {
 
   String? get _sapXep =>
       _sortColumn == null ? null : '$_sortColumn:${_sortType.toLowerCase()}';
+
+  // ----- helpers cho modal "Lọc & sắp xếp" dùng chung -----
+
+  /// Danh sách lựa chọn cho dropdown "Sắp xếp theo" — gộp cột + chiều
+  /// thành từng lựa chọn riêng (vd "Tên nhân viên (A → Z)").
+  List<TuyChonSapXep> get _tuyChonSapXep => [
+        const TuyChonSapXep(value: '', label: 'Mặc định'),
+        for (final col in _cotSapXep) ...[
+          TuyChonSapXep(value: '${col.$1}:ASC', label: '${col.$2} (A → Z)'),
+          TuyChonSapXep(value: '${col.$1}:DESC', label: '${col.$2} (Z → A)'),
+        ],
+      ];
+
+  /// Giá trị đang chọn tương ứng với danh sách trên (rỗng = "Mặc định").
+  String get _sapXepDangChonHienTai =>
+      _sortColumn == null ? '' : '$_sortColumn:$_sortType';
+
+  void _onDoiSapXep(String? value) {
+    setState(() {
+      if (value == null || value.isEmpty) {
+        _sortColumn = null;
+        _sortType = 'ASC';
+      } else {
+        final parts = value.split(':');
+        _sortColumn = parts[0];
+        _sortType = parts.length > 1 ? parts[1] : 'ASC';
+      }
+      _trang = 1;
+    });
+    unawaited(_taiLai());
+  }
 
   @override
   void initState() {
@@ -398,103 +370,56 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     });
   }
 
-  /// Bấm nút "..." kế bên ô tìm kiếm — mở modal Lọc & sắp xếp.
+  /// Bấm nút "..." kế bên ô tìm kiếm — mở modal Lọc & sắp xếp DÙNG CHUNG
+  /// (components/modal_loc_sap_xep.dart). Mỗi lần chọn chip/dropdown,
+  /// callback tương ứng (_onFilterVaiTroChanged, _onFilterTrangThaiChanged,
+  /// _onDoiSapXep) tự setState + gọi lại _taiLai() như trước — component
+  /// chỉ lo phần hiển thị/tô chọn trong modal.
   Future<void> _moModalLocSapXep() async {
     FocusScope.of(context).unfocus();
-    await showAppModal(
+    await showModalLocSapXep(
       context,
       title: 'Lọc & sắp xếp',
-      type: AppModalType.bottomSheet,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          void chon(VoidCallback thayDoi) {
-            thayDoi();
-            setModalState(() {});
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Sắp xếp theo',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              const SizedBox(height: 8),
-              for (final col in _cotSapXep)
-                _DongSapXep(
-                  label: col.$2,
-                  dangChon: _sortColumn == col.$1,
-                  tangDan: _sortType == 'ASC',
-                  onTap: () => chon(() => _onSortColumnTap(col.$1)),
-                ),
-              const SizedBox(height: 20),
-              const Text('Vai trò',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChipLoc(
-                    label: 'Tất cả',
-                    soDem: _tongSoTatCa,
-                    soDemDangNgoac: false,
-                    dangChon: _filterVaiTro == null,
-                    onTap: () => chon(() => _onFilterVaiTroChanged(null)),
-                  ),
-                  for (final vt in _vaiTroOptions)
-                    ChipLoc(
-                      label: vt['ten_hien_thi']?.toString() ??
-                          vt['ma_vai_tro']?.toString() ??
-                          '',
-                      soDem: _demTheoVaiTro[vt['ma_vai_tro']?.toString()] ?? 0,
-                      soDemDangNgoac: false,
-                      dangChon: _filterVaiTro == vt['ma_vai_tro']?.toString(),
-                      onTap: () => chon(() =>
-                          _onFilterVaiTroChanged(vt['ma_vai_tro']?.toString())),
-                    ),
-                ],
+      tuyChonSapXep: _tuyChonSapXep,
+      sapXepDangChon: _sapXepDangChonHienTai,
+      onDoiSapXep: _onDoiSapXep,
+      nhomLoc: [
+        NhomLoc(
+          tieuDe: 'Vai trò',
+          options: [
+            TuyChonLoc(
+              value: null,
+              label: 'Tất cả',
+              soDem: _tongSoTatCa,
+            ),
+            for (final vt in _vaiTroOptions)
+              TuyChonLoc(
+                value: vt['ma_vai_tro']?.toString(),
+                label: vt['ten_hien_thi']?.toString() ??
+                    vt['ma_vai_tro']?.toString() ??
+                    '',
+                soDem: _demTheoVaiTro[vt['ma_vai_tro']?.toString()] ?? 0,
               ),
-              const SizedBox(height: 20),
-              const Text('Trạng thái',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final opt in _trangThaiOptions)
-                    ChipLoc(
-                      label: opt.$2,
-                      mau: opt.$3,
-                      dangChon: _filterTrangThai == opt.$1,
-                      onTap: () =>
-                          chon(() => _onFilterTrangThaiChanged(opt.$1)),
-                    ),
-                ],
+          ],
+          dangChon: _filterVaiTro,
+          onChon: _onFilterVaiTroChanged,
+        ),
+        NhomLoc(
+          tieuDe: 'Trạng thái',
+          options: [
+            for (final opt in _trangThaiOptions)
+              TuyChonLoc(
+                value: opt.$1?.toString(),
+                label: opt.$2,
+                mau: opt.$3,
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => chon(_xoaLoc),
-                      child: const Text('Xoá lọc'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary),
-                      child: const Text('Xong'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
+          ],
+          dangChon: _filterTrangThai?.toString(),
+          onChon: (value) =>
+              _onFilterTrangThaiChanged(value == null ? null : value == 'true'),
+        ),
+      ],
+      onXoaLoc: _xoaLoc,
     );
   }
 
@@ -545,19 +470,6 @@ class _NhanVienListViewState extends State<NhanVienListView> {
     if (value == _filterTrangThai) return;
     setState(() {
       _filterTrangThai = value;
-      _trang = 1;
-    });
-    unawaited(_taiLai());
-  }
-
-  void _onSortColumnTap(String column) {
-    setState(() {
-      if (_sortColumn == column) {
-        _sortType = _sortType == 'ASC' ? 'DESC' : 'ASC';
-      } else {
-        _sortColumn = column;
-        _sortType = 'ASC';
-      }
       _trang = 1;
     });
     unawaited(_taiLai());

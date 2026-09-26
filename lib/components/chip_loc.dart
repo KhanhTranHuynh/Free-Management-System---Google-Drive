@@ -7,6 +7,11 @@ import '../configs/app_colors.dart';
 /// Chip lọc dùng chung (dùng ở Nhật ký hệ thống, Nhân viên...): dạng viên
 /// thuốc, có số đếm, có thể kèm chấm màu để phân biệt loại. Khi được chọn
 /// sẽ tô nền [AppColors.primary] và số đếm hiện trong bong bóng trắng mờ.
+///
+/// UI FIX: bản trước chỉ có `padding: EdgeInsets.symmetric(horizontal: 12)`
+/// — KHÔNG có padding dọc — nên chip bị bẹp, nhìn nhỏ hơn hẳn các chip
+/// khác trong app. Giờ thêm padding dọc + tăng nhẹ cỡ chữ/khoảng cách để
+/// chip có kích thước dễ bấm hơn, đặc biệt trên mobile.
 class ChipLoc extends StatelessWidget {
   const ChipLoc({
     super.key,
@@ -35,7 +40,8 @@ class ChipLoc extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        // UI FIX: thêm padding dọc (trước không có) -> chip không còn bẹp.
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: dangChon ? AppColors.primary : colorScheme.surface,
           borderRadius: BorderRadius.circular(999),
@@ -47,26 +53,26 @@ class ChipLoc extends StatelessWidget {
           children: [
             if (!dangChon && mau != null) ...[
               Container(
-                width: 8,
-                height: 8,
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: mau),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 7),
             ],
             Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w700,
                 color: dangChon ? Colors.white : null,
               ),
             ),
             if (soDem != null) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 7),
               if (dangChon)
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.22),
                     borderRadius: BorderRadius.circular(999),
@@ -74,7 +80,7 @@ class ChipLoc extends StatelessWidget {
                   child: Text(
                     '$soDem',
                     style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w800,
                         color: Colors.white),
                   ),
@@ -83,7 +89,7 @@ class ChipLoc extends StatelessWidget {
                 Text(
                   soDemDangNgoac ? '($soDem)' : '$soDem',
                   style: TextStyle(
-                      fontSize: 12.5, color: colorScheme.onSurfaceVariant),
+                      fontSize: 13.5, color: colorScheme.onSurfaceVariant),
                 ),
             ],
           ],

@@ -125,7 +125,14 @@ class _EditNhanVienController extends ChangeNotifier {
         email = form.email,
         vaiTro = List<String>.from(form.vaiTro),
         trangThai = form.trangThai,
-        mauSac = form.mauSac;
+        // Đổi từ field String `mauSac` sang TextEditingController, đồng bộ
+        // cách sua_thong_tin_modal.dart đang làm để có ô nhập mã hex thủ công.
+        mauSacCtrl = TextEditingController(text: form.mauSac.toUpperCase()) {
+    mauSacCtrl.addListener(() {
+      errors.remove('mauSac');
+      notifyListeners();
+    });
+  }
 
   final NhanVienApi _api;
   final Map<String, dynamic> nhanVien;
@@ -140,7 +147,7 @@ class _EditNhanVienController extends ChangeNotifier {
 
   List<String> vaiTro;
   bool trangThai;
-  String mauSac;
+  final TextEditingController mauSacCtrl;
 
   bool isSaving = false;
   String? formError;
@@ -158,27 +165,29 @@ class _EditNhanVienController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTrangThai(bool? v) {
-    if (v == null) return;
+  // Đổi sang nhận `bool` (không nullable) để dùng trực tiếp với
+  // `SwitchListTile.onChanged`, đồng bộ với modal Thêm nhân viên.
+  void setTrangThai(bool v) {
     trangThai = v;
     notifyListeners();
   }
 
   /// Nhận hex từ `MauSacGoiYPicker` (preset hoặc bánh xe tự do) — cùng một
-  /// điểm vào duy nhất, đồng bộ với modal Thêm nhân viên / Sửa thông tin.
+  /// điểm vào duy nhất, đồng bộ với modal Sửa thông tin cá nhân
+  /// (sua_thong_tin_modal.dart:`chonMauSac`). Gán thẳng vào controller,
+  /// listener ở constructor lo việc xóa lỗi + notify.
   void setMauSac(String hex) {
-    mauSac = hex;
-    errors.remove('mauSac');
-    notifyListeners();
+    mauSacCtrl.text = hex;
   }
 
   bool _validate() {
     errors.clear();
     final ten = hoTen.text.trim();
+    final mau = mauSacCtrl.text.trim();
 
     if (ten.isEmpty) errors['hoTen'] = 'Vui lòng nhập họ tên';
     if (vaiTro.isEmpty) errors['vaiTro'] = 'Vui lòng chọn ít nhất một vai trò';
-    if (mauSac.isNotEmpty && !isHexMauSacHopLe(mauSac.trim())) {
+    if (mau.isNotEmpty && !isHexMauSacHopLe(mau)) {
       errors['mauSac'] = 'Mã màu không hợp lệ';
     }
 
@@ -200,7 +209,7 @@ class _EditNhanVienController extends ChangeNotifier {
       'ho_ten': hoTen.text.trim(),
       'vai_tro': List<String>.from(vaiTro),
       'trang_thai': trangThai,
-      'mau_sac': mauSac.trim().isEmpty ? null : mauSac.trim(),
+      'mau_sac': mauSacCtrl.text.trim().isEmpty ? null : mauSacCtrl.text.trim(),
     };
 
     try {
@@ -222,6 +231,7 @@ class _EditNhanVienController extends ChangeNotifier {
   @override
   void dispose() {
     hoTen.dispose();
+    mauSacCtrl.dispose();
     super.dispose();
   }
 }
@@ -281,21 +291,14 @@ class _EditNhanVienBody extends StatelessWidget {
   final _EditNhanVienController c;
   final List<Map<String, dynamic>> vaiTroOptions;
 
-  Widget _trangThaiField(BuildContext context) {
-    return DropdownButtonFormField<bool>(
-      initialValue: c.trangThai,
-      isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Trạng thái',
-        border: OutlineInputBorder(),
-      ),
-      items: const [
-        DropdownMenuItem(value: true, child: Text('Hoạt động')),
-        DropdownMenuItem(value: false, child: Text('Khóa')),
-      ],
-      onChanged: c.isSaving ? null : c.setTrangThai,
-    );
-  }
+  // Style label viết hoa nhỏ, lấy đúng theo _tieuDeNho bên
+  // sua_thong_tin_modal.dart để 2 modal đồng bộ giao diện.
+  static const _tieuDeNho = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.4,
+    color: Color(0xFF94A3B8),
+  );
 
   Widget _vaiTroField(BuildContext context) {
     final theme = Theme.of(context);
@@ -341,30 +344,51 @@ class _EditNhanVienBody extends StatelessWidget {
     );
   }
 
+  // UI FIX: bố cục lại đúng theo cách sua_thong_tin_modal.dart đang làm —
+  // label viết hoa nhỏ, picker, rồi vòng tròn preview màu + ô nhập mã hex
+  // thủ công (AppTextInput), và dòng caption phụ bên dưới. Trước đây chỉ
+  // có picker + text lỗi rời rạc, không có ô hex để gõ tay.
   Widget _mauSacField(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Màu hiển thị trên lịch', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 8),
-        // Đồng bộ với modal Thêm nhân viên / Sửa thông tin cá nhân: dùng
-        // chung `MauSacGoiYPicker` (bảng preset + nút "+" mở bánh xe màu
-        // tự do) thay vì tự vẽ lại bảng màu riêng như bản trước.
+        const Text('MÀU HIỂN THỊ TRÊN LỊCH', style: _tieuDeNho),
+        const SizedBox(height: 10),
         MauSacGoiYPicker(
-          mauSacDangChon: c.mauSac,
+          mauSacDangChon: c.mauSacCtrl.text,
           onChon: c.isSaving ? (_) {} : c.setMauSac,
           choPhepTuyChinh: true,
-          swatchSize: 34,
         ),
-        if (c.errors['mauSac'] != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              c.errors['mauSac']!,
-              style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: hexToMauSac(c.mauSacCtrl.text),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppTextInput(
+                controller: c.mauSacCtrl,
+                label: 'Mã màu (hex)',
+                hint: '#RRGGBB',
+                prefixIcon: Icons.tag_outlined,
+                enabled: !c.isSaving,
+                errorText: c.errors['mauSac'],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Màu này sẽ hiển thị trên các sự kiện của bạn',
+          style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+        ),
       ],
     );
   }
@@ -392,8 +416,6 @@ class _EditNhanVienBody extends StatelessWidget {
               onChanged: (_) => c.clearError('hoTen'),
             ),
             const SizedBox(height: 14),
-            _trangThaiField(context),
-            const SizedBox(height: 14),
             // Số điện thoại / Email: chỉ xem, không cho sửa — giống
             // `readonly disabled` bên bản React (không có onChanged thật).
             AppTextInput(
@@ -414,6 +436,16 @@ class _EditNhanVienBody extends StatelessWidget {
             const SizedBox(height: 14),
             _vaiTroField(context),
             const SizedBox(height: 14),
+            // UI FIX: đổi từ DropdownButtonFormField sang SwitchListTile để
+            // đồng bộ đúng mẫu UI với modal Thêm nhân viên (add_nhan_vien_modal.dart).
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Trạng thái'),
+              subtitle: Text(c.trangThai ? 'Hoạt động' : 'Khóa'),
+              value: c.trangThai,
+              onChanged: c.isSaving ? null : c.setTrangThai,
+            ),
+            const SizedBox(height: 8),
             _mauSacField(context),
             if (c.formError != null) ...[
               const SizedBox(height: 12),
