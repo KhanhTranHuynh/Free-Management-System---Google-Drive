@@ -264,8 +264,16 @@ class _NhatKyHeThongListViewState extends State<NhatKyHeThongListView> {
   Widget build(BuildContext context) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
+      // top: false — màn này thường được nhúng bên trong 1 Scaffold/route
+      // đã có AppBar hoặc SafeArea riêng lo phần status bar rồi, nên để
+      // SafeArea ở đây tự thêm top inset nữa sẽ bị cộng dồn thành khoảng
+      // trắng rất to phía trên. Nếu bạn dùng widget này làm MÀN GỐC,
+      // không có AppBar/SafeArea nào bọc ngoài, đổi lại thành `top: true`
+      // (hoặc bỏ tham số top) để tránh nội dung bị đè lên status bar.
       child: SafeArea(
+        top: false,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Header(tongSo: _tongSoTatCa),
             Padding(
