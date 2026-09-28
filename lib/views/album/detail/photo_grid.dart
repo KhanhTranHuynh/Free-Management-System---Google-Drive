@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../configs/app_colors.dart';
+import '../../../utils/tai_anh_util.dart';
 
 /// Tương ứng PhotoGrid.jsx. Trả về Sliver để nhúng vào CustomScrollView
 /// của view cha (infinite scroll do controller cha lo qua ScrollController).
+/// Bấm nút "toàn màn hình" hoặc nhấn giữ ảnh -> xem toàn màn hình.
 class PhotoGridSliver extends StatelessWidget {
   const PhotoGridSliver({
     super.key,
@@ -14,7 +16,6 @@ class PhotoGridSliver extends StatelessWidget {
     required this.onSelectPhoto,
     this.error,
     this.idAnhDangXem,
-    this.onOpenGallery,
     this.onToggleChonAnh,
     this.dangDoiChonIds = const {},
     this.onXoaYeuCauAnh,
@@ -29,7 +30,6 @@ class PhotoGridSliver extends StatelessWidget {
   final String? error;
   final String? idAnhDangXem;
   final ValueChanged<Map<String, dynamic>> onSelectPhoto;
-  final ValueChanged<Map<String, dynamic>>? onOpenGallery;
 
   /// null = không có quyền chọn.
   final ValueChanged<Map<String, dynamic>>? onToggleChonAnh;
@@ -83,8 +83,8 @@ class PhotoGridSliver extends StatelessWidget {
                   dangXoaYeuCau: dangXoaYeuCauIds.contains(id),
                   anBadgeTrangThai: anBadgeTrangThai,
                   onTap: () => onSelectPhoto(a),
-                  onLongPress:
-                      onOpenGallery == null ? null : () => onOpenGallery!(a),
+                  onOpenGallery: () =>
+                      hienXemAnhToanManHinh(context, ds: anhList, batDau: i),
                   onToggleChon: onToggleChonAnh == null
                       ? null
                       : () => onToggleChonAnh!(a),
@@ -143,12 +143,12 @@ String _duoiFile(String? ten) {
   return ten.substring(i + 1).toUpperCase();
 }
 
-class PhotoTile extends StatelessWidget {
+class PhotoTile extends StatefulWidget {
   const PhotoTile({
     super.key,
     required this.anh,
     required this.onTap,
-    this.onLongPress,
+    this.onOpenGallery,
     this.onToggleChon,
     this.onXoaYeuCau,
     this.dangXemChiTiet = false,
@@ -159,7 +159,7 @@ class PhotoTile extends StatelessWidget {
 
   final Map<String, dynamic> anh;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+  final VoidCallback? onOpenGallery;
   final VoidCallback? onToggleChon;
   final VoidCallback? onXoaYeuCau;
   final bool dangXemChiTiet;
@@ -168,27 +168,53 @@ class PhotoTile extends StatelessWidget {
   final bool anBadgeTrangThai;
 
   @override
+  State<PhotoTile> createState() => _PhotoTileState();
+}
+
+class _PhotoTileState extends State<PhotoTile> {
+  bool _dangTai = false;
+
+  Future<void> _taiXuong() async {
+    if (_dangTai) return;
+    setState(() => _dangTai = true);
+    try {
+      final ok = await TaiAnh.taiMotAnh(widget.anh);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không có link tải ảnh')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Tải ảnh thất bại')));
+      }
+    }
+    if (mounted) setState(() => _dangTai = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final anh = widget.anh;
     final badge = layNhanBadge(anh);
-    final trangThaiText = anBadgeTrangThai ? null : badge.trangThai;
+    final trangThaiText = widget.anBadgeTrangThai ? null : badge.trangThai;
     final duocChon = anh['duoc_khach_chon'] == true;
     final duocPhepChon = anh['duoc_phep_chon'] == true;
     final duocPhepHuy = anh['duoc_phep_huy_yeu_cau'] == true;
-    final url = anh['duong_dan_preview']?.toString() ??
-        anh['duong_dan_drive_xem']?.toString();
+    final url = urlXemCuaAnh(anh);
     final duoi = _duoiFile(anh['ten_tep_goc']?.toString());
 
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTap: widget.onTap,
+      onLongPress: widget.onOpenGallery,
       child: Container(
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: dangXemChiTiet ? AppColors.primary : cs.outlineVariant,
-            width: dangXemChiTiet ? 2 : 1,
+            color:
+                widget.dangXemChiTiet ? AppColors.primary : cs.outlineVariant,
+            width: widget.dangXemChiTiet ? 2 : 1,
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -217,19 +243,31 @@ class PhotoTile extends StatelessWidget {
                       child:
                           _Badge(text: trangThaiText, color: AppColors.primary),
                     ),
+                  if (widget.onOpenGallery != null)
+                    Positioned(
+                      left: 6,
+                      bottom: 6,
+                      child: _RoundButton(
+                        color: Colors.black54,
+                        loading: false,
+                        icon: Icons.open_in_full,
+                        onTap: widget.onOpenGallery,
+                      ),
+                    ),
                   if (duocPhepHuy)
                     Positioned(
                       right: 6,
                       bottom: 6,
                       child: _RoundButton(
-                        color: onXoaYeuCau != null
+                        color: widget.onXoaYeuCau != null
                             ? Colors.red.shade600
                             : Colors.red.shade300,
-                        loading: dangXoaYeuCau,
+                        loading: widget.dangXoaYeuCau,
                         icon: Icons.close,
-                        onTap: (onXoaYeuCau == null || dangXoaYeuCau)
-                            ? null
-                            : onXoaYeuCau,
+                        onTap:
+                            (widget.onXoaYeuCau == null || widget.dangXoaYeuCau)
+                                ? null
+                                : widget.onXoaYeuCau,
                       ),
                     )
                   else if (duocPhepChon)
@@ -238,18 +276,20 @@ class PhotoTile extends StatelessWidget {
                       bottom: 6,
                       child: _RoundButton(
                         color: duocChon ? AppColors.primary : Colors.black54,
-                        loading: dangDoiChon,
+                        loading: widget.dangDoiChon,
                         icon: Icons.check,
-                        onTap: (onToggleChon == null || dangDoiChon)
-                            ? null
-                            : onToggleChon,
+                        onTap:
+                            (widget.onToggleChon == null || widget.dangDoiChon)
+                                ? null
+                                : widget.onToggleChon,
                       ),
                     ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding:
+                  const EdgeInsets.only(left: 10, right: 2, top: 2, bottom: 2),
               child: Row(
                 children: [
                   Expanded(
@@ -265,6 +305,18 @@ class PhotoTile extends StatelessWidget {
                             style: TextStyle(fontSize: 9, color: cs.outline)),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 16,
+                    tooltip: 'Tải ảnh gốc',
+                    onPressed: _dangTai ? null : _taiXuong,
+                    icon: _dangTai
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.download),
                   ),
                 ],
               ),

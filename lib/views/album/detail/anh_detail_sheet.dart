@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../apis/services/binh_luan_anh_api.dart';
+import '../../../../apis/services/album_detail_api.dart';
 import '../../../../apis/services/tep_anh_api.dart';
 import '../../../../apis/services/yeu_cau_chinh_sua_api.dart';
 import '../../../../configs/app_colors.dart';
@@ -10,15 +10,11 @@ import 'album_detail_constants.dart';
 import 'anh_lien_quan_sheet.dart';
 import 'lich_su_yeu_cau_card.dart';
 import 'so_sanh_phien_ban.dart';
+import '../../../utils/tai_anh_util.dart';
 import 'upload_ket_qua_dialog.dart';
 
 /// Tương ứng DetailPanel.jsx (phiên bản mobile, bottom sheet).
-///
-/// Đã có: thông tin ảnh, danh sách yêu cầu, gửi yêu cầu (ẩn khi đã có
-/// yêu cầu), bình luận dạng thread, gửi bình luận / trả lời.
-/// Chưa có (cần thêm API): sửa/xoá yêu cầu, xoá / giải quyết bình luận,
-/// hoàn thành yêu cầu, so sánh trước/sau (tepAnhKeBen), lịch sử yêu cầu,
-/// ảnh liên quan, upload kết quả.
+/// Quyền truyền từ view cha (dựng từ AuthStore.coQuyen), không hard-code.
 class AnhDetailSheet extends StatefulWidget {
   const AnhDetailSheet({
     super.key,
@@ -26,17 +22,17 @@ class AnhDetailSheet extends StatefulWidget {
     required this.anhBanDau,
     required this.tepAnhApi,
     required this.ycsApi,
-    required this.blApi,
+    required this.extraApi,
     required this.scrollController,
     required this.onThayDoi,
-    this.quyen = const AlbumQuyen(),
+    required this.quyen,
   });
 
   final String idAlbum;
   final Map<String, dynamic> anhBanDau;
   final TepAnhApi tepAnhApi;
   final YeuCauChinhSuaApi ycsApi;
-  final BinhLuanAnhApi blApi;
+  final AlbumDetailApi extraApi;
   final ScrollController scrollController;
   final Future<void> Function() onThayDoi;
   final AlbumQuyen quyen;
@@ -54,11 +50,13 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
   bool _isError = false;
   bool _dangGuiYeuCau = false;
   bool _dangGuiBinhLuan = false;
+  bool _dangTaiAnh = false;
   String? _dangTraLoiId;
+  String? _dangDoiGiaiQuyetId;
+  String? _dangXoaBinhLuanId;
   bool _moRongYeuCau = false;
   bool _moRongBinhLuan = false;
 
-  // Ảnh đang xem trong sheet (đổi được khi bấm "Xem" ở cặp so sánh / ảnh liên quan).
   late Map<String, dynamic> _anhHienTai = widget.anhBanDau;
   Map<String, dynamic>? _keBen; // { truoc, sau }
   List<Map<String, dynamic>> _lichSu = [];
@@ -80,7 +78,7 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     super.dispose();
   }
 
-  // ---- gộp dữ liệu list + chi tiết (chi tiết không được ghi đè bằng null) ----
+  // gộp dữ liệu list + chi tiết (chi tiết không được ghi đè bằng null)
   Map<String, dynamic> get _anh {
     final ct = Map<String, dynamic>.from(
         (_chiTiet?['tep_anh'] as Map?) ?? const <String, dynamic>{});
@@ -142,6 +140,27 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     unawaited(_taiChiTiet());
   }
 
+  void _msg(String s) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(s)));
+  }
+
+  // ---------------- Tải ảnh ----------------
+  Future<void> _taiAnh() async {
+    if (_dangTaiAnh) return;
+    setState(() => _dangTaiAnh = true);
+    try {
+      final ok = await TaiAnh.taiMotAnh(_anh);
+      if (!ok) _msg('Không có link tải ảnh');
+    } catch (_) {
+      _msg('Tải ảnh thất bại');
+    }
+    if (mounted) setState(() => _dangTaiAnh = false);
+  }
+
+  // ---------------- Yêu cầu ----------------
   Future<void> _suaYeuCau(String id, String noiDung) async {
     try {
       await widget.ycsApi.sua(idYeuCau: id, noiDung: noiDung);
@@ -181,18 +200,21 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     }
   }
 
-  void _msg(String s) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(s)));
-  }
-
+  /// taoYeuCauChinhSuaAnh bên React: chưa chọn thì chọn ảnh trước (cần
+  /// quyền chọn), rồi mới tạo yêu cầu.
   Future<void> _guiYeuCau() async {
     final noiDung = _yeuCauCtrl.text.trim();
     if (noiDung.isEmpty || _dangGuiYeuCau) return;
     setState(() => _dangGuiYeuCau = true);
     try {
+      if (_anh['duoc_khach_chon'] != true) {
+        if (!widget.quyen.chonAnh) {
+          _msg('Bạn không có quyền chọn ảnh để gửi yêu cầu chỉnh sửa.');
+          return;
+        }
+        await widget.tepAnhApi.chonTepAnh(
+            idAlbum: widget.idAlbum, idTepAnh: [_idTepAnh], chon: true);
+      }
       await widget.ycsApi.taoHangLoat(
         idAlbum: widget.idAlbum,
         tepAnhIds: [_idTepAnh],
@@ -209,21 +231,53 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     }
   }
 
+  // ---------------- Bình luận ----------------
   Future<void> _guiBinhLuan() async {
     final noiDung = _binhLuanCtrl.text.trim();
     if (noiDung.isEmpty || _dangGuiBinhLuan) return;
     setState(() => _dangGuiBinhLuan = true);
     try {
-      // TODO: blApi.taoBinhLuan cần nhận thêm binhLuanChaId (trả lời).
-      await widget.blApi.taoBinhLuan(idTepAnh: _idTepAnh, noiDung: noiDung);
+      await widget.extraApi.taoBinhLuan(
+        idTepAnh: _idTepAnh,
+        noiDung: noiDung,
+        binhLuanChaId: _dangTraLoiId,
+      );
       _binhLuanCtrl.clear();
-      setState(() => _dangTraLoiId = null);
+      _msg('Đã gửi bình luận');
+      if (mounted) setState(() => _dangTraLoiId = null);
       await _taiChiTiet();
     } catch (_) {
       _msg('Gửi bình luận thất bại, vui lòng thử lại.');
     } finally {
       if (mounted) setState(() => _dangGuiBinhLuan = false);
     }
+  }
+
+  Future<void> _doiGiaiQuyet(String id, bool moi) async {
+    if (_dangDoiGiaiQuyetId != null) return;
+    setState(() => _dangDoiGiaiQuyetId = id);
+    try {
+      await widget.extraApi.giaiQuyetBinhLuan(id, moi);
+      _msg('Đã cập nhật trạng thái giải quyết');
+      await _taiChiTiet();
+    } catch (_) {
+      _msg('Cập nhật thất bại');
+    }
+    if (mounted) setState(() => _dangDoiGiaiQuyetId = null);
+  }
+
+  Future<void> _xoaBinhLuan(String id) async {
+    if (_dangXoaBinhLuanId != null) return;
+    setState(() => _dangXoaBinhLuanId = id);
+    try {
+      await widget.extraApi.xoaBinhLuan(id);
+      _msg('Đã xoá bình luận');
+      if (_dangTraLoiId == id) _dangTraLoiId = null;
+      await _taiChiTiet();
+    } catch (_) {
+      _msg('Xoá bình luận thất bại');
+    }
+    if (mounted) setState(() => _dangXoaBinhLuanId = null);
   }
 
   // ---- gom thread bình luận (giống gomThreadBinhLuan) ----
@@ -275,6 +329,7 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final q = widget.quyen;
     final anh = _anh;
     final lanSua = (anh['lan_sua_hien_tai'] as num?)?.toInt() ?? 0;
 
@@ -294,8 +349,7 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     final yeuCauHienThi = _moRongYeuCau ? yeuCau : yeuCau.take(1).toList();
     final threadHienThi = _moRongBinhLuan ? threads : threads.take(1).toList();
 
-    final url = anh['duong_dan_preview']?.toString() ??
-        anh['duong_dan_drive_xem']?.toString();
+    final url = urlXemCuaAnh(anh);
 
     Map<String, dynamic>? layKe(String k) =>
         _keBen?[k] is Map ? Map<String, dynamic>.from(_keBen![k] as Map) : null;
@@ -306,9 +360,18 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
     final yeuCauCoTheUpload = yeuCauCuaAnh
         .where((y) => y['trang_thai_yeu_cau'] != 'hoan_thanh')
         .firstOrNull;
-    final coTheUpload = widget.quyen.laNhanVien &&
+
+    // React: canUploadKetQua = laNhanVien && anh.duoc_phep_upload_ket_qua
+    final coTheUpload = q.laNhanVien &&
         anh['duoc_phep_upload_ket_qua'] == true &&
         yeuCauCoTheUpload != null;
+
+    final tuNoiDungCha = _dangTraLoiId == null
+        ? null
+        : binhLuan
+            .where((b) => b['id_binh_luan_anh']?.toString() == _dangTraLoiId)
+            .firstOrNull?['noi_dung']
+            ?.toString();
 
     return Padding(
       padding:
@@ -337,11 +400,15 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
             )
           else if (url != null)
             Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(url, fit: BoxFit.contain),
+              child: GestureDetector(
+                onTap: () =>
+                    hienXemAnhToanManHinh(context, ds: [anh], batDau: 0),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(url, fit: BoxFit.contain),
+                  ),
                 ),
               ),
             ),
@@ -350,9 +417,19 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
             alignment: WrapAlignment.center,
             spacing: 8,
             children: [
+              OutlinedButton.icon(
+                onPressed: _dangTaiAnh ? null : _taiAnh,
+                icon: _dangTaiAnh
+                    ? const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.download, size: 14),
+                label: Text(_dangTaiAnh ? 'Đang tải...' : 'Tải ảnh'),
+              ),
               if (coTheUpload)
                 OutlinedButton.icon(
-                  onPressed: () => _upload(yeuCauCoTheUpload!),
+                  onPressed: () => _upload(yeuCauCoTheUpload),
                   icon: const Icon(Icons.cloud_upload_outlined, size: 14),
                   label: const Text('Upload kết quả'),
                 ),
@@ -373,7 +450,7 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
             title: 'Thông tin tệp ảnh',
             child: Column(children: [
               _Row('Tên tệp gốc', anh['ten_tep_goc']?.toString() ?? '—'),
-              _Row('Trạng thái',
+              _Row('Trạng thái hiện tại của ảnh',
                   _tenTrangThai(anh['trang_thai_anh']?.toString())),
               _Row('Phiên bản', lanSua > 0 ? 'Sửa lần $lanSua' : 'Gốc'),
               _Row('Ngày tạo', _fmt(anh['created_at'])),
@@ -410,10 +487,8 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
                     return _YeuCauCard(
                       y: y,
                       fmt: _fmt,
-                      onSua: (widget.quyen.suaYeuCau && chuaChot)
-                          ? _suaYeuCau
-                          : null,
-                      onXoa: (widget.quyen.huyYeuCau &&
+                      onSua: (q.suaYeuCau && chuaChot) ? _suaYeuCau : null,
+                      onXoa: (q.huyYeuCau &&
                               anh['duoc_phep_huy_yeu_cau'] == true &&
                               chuaChot)
                           ? _xoaYeuCau
@@ -441,7 +516,7 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
                         style: TextStyle(fontSize: 11, color: cs.outline),
                       ),
                     )
-                  else if (widget.quyen.taoYeuCau)
+                  else if (q.taoYeuCau)
                     _InputRow(
                       controller: _yeuCauCtrl,
                       hint: 'Nhập nội dung yêu cầu chỉnh sửa...',
@@ -461,25 +536,35 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
                   if (binhLuan.isEmpty)
                     Text('Chưa có bình luận nào.',
                         style: TextStyle(fontSize: 12, color: cs.outline)),
-                  ...threadHienThi.map((th) => Column(
-                        children: [
-                          _BinhLuanCard(
-                              bl: th.root,
-                              fmt: _fmt,
-                              onReply: () => setState(() {
-                                    _dangTraLoiId =
-                                        th.root['id_binh_luan_anh'].toString();
-                                    _moRongBinhLuan = true;
-                                  })),
-                          ...th.traLoi.map((r) => _BinhLuanCard(
-                                bl: r,
-                                fmt: _fmt,
-                                isReply: true,
-                                onReply: () => setState(() => _dangTraLoiId =
-                                    r['id_binh_luan_anh'].toString()),
-                              )),
-                        ],
-                      )),
+                  ...threadHienThi.map((th) {
+                    Widget card(Map<String, dynamic> bl, bool isReply) {
+                      final id = bl['id_binh_luan_anh'].toString();
+                      return _BinhLuanCard(
+                        bl: bl,
+                        fmt: _fmt,
+                        isReply: isReply,
+                        onReply: () => setState(() {
+                          _dangTraLoiId = id;
+                          _moRongBinhLuan = true;
+                        }),
+                        // React: canResolve = laNhanVien; canDelete =
+                        // laNhanVien || người bình luận cùng loại phiên.
+                        onToggleResolve: q.laNhanVien
+                            ? () => _doiGiaiQuyet(
+                                id, !(bl['da_giai_quyet'] == true))
+                            : null,
+                        onDelete: q.laNhanVien ? () => _xoaBinhLuan(id) : null,
+                        dangXoa: _dangXoaBinhLuanId == id,
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        card(th.root, false),
+                        ...th.traLoi.map((r) => card(r, true)),
+                      ],
+                    );
+                  }),
                   _XemThem(
                     dangMoRong: _moRongBinhLuan,
                     soAn: threads.length - 1,
@@ -493,9 +578,15 @@ class _AnhDetailSheetState extends State<AnhDetailSheet> {
                         children: [
                           const Icon(Icons.reply, size: 14),
                           const SizedBox(width: 6),
-                          const Expanded(
-                              child: Text('Đang trả lời 1 bình luận',
-                                  style: TextStyle(fontSize: 11))),
+                          Expanded(
+                              child: Text(
+                                  (tuNoiDungCha != null &&
+                                          tuNoiDungCha.isNotEmpty)
+                                      ? 'Đang trả lời "${tuNoiDungCha.length > 40 ? '${tuNoiDungCha.substring(0, 40)}…' : tuNoiDungCha}"'
+                                      : 'Đang trả lời 1 bình luận',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11))),
                           InkWell(
                             onTap: () => setState(() => _dangTraLoiId = null),
                             child: const Icon(Icons.close, size: 14),
@@ -658,11 +749,24 @@ class _YeuCauCardState extends State<_YeuCauCard> {
   @override
   Widget build(BuildContext context) {
     final y = widget.y;
+    final cs = Theme.of(context).colorScheme;
     final tt = y['trang_thai_yeu_cau']?.toString();
     final ten = y['nguoi_yeu_cau_ho_ten']?.toString() ??
         (y['tai_khoan_khach_hang_id'] != null
             ? 'Khách hàng'
             : 'Nhân viên studio');
+    final nguoiThucHien = y['nguoi_thuc_hien_ho_ten']?.toString();
+
+    // Timeline như DetailPanel.jsx: mới nhất hiển thị trước.
+    final moc = <(String, String?)>[
+      ('$ten đã yêu cầu', widget.fmt(y['created_at'])),
+      if (nguoiThucHien != null && nguoiThucHien.isNotEmpty)
+        ('$nguoiThucHien đang thực hiện', null),
+      if (y['chot_luc'] != null) ('Đã chốt yêu cầu', widget.fmt(y['chot_luc'])),
+      if (tt == 'hoan_thanh')
+        ('Hoàn thành', widget.fmt(y['chot_luc'] ?? y['updated_at'])),
+    ].reversed.toList();
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -671,13 +775,11 @@ class _YeuCauCardState extends State<_YeuCauCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                    child: Text(ten,
-                        style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w600))),
-                Text(tt ?? '—',
-                    style: TextStyle(fontSize: 10, color: AppColors.primary)),
+                Text(YcsTrangThai.label[tt] ?? tt ?? '—',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.primary)),
                 if (widget.onSua != null && !_dangSua)
                   IconButton(
                     visualDensity: VisualDensity.compact,
@@ -730,16 +832,23 @@ class _YeuCauCardState extends State<_YeuCauCard> {
               ),
             ] else if ((y['noi_dung_yeu_cau']?.toString() ?? '').isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Text(y['noi_dung_yeu_cau'].toString(),
                     style: const TextStyle(fontSize: 12)),
               ),
-            const SizedBox(height: 6),
-            _Moc('Đã yêu cầu', widget.fmt(y['created_at'])),
+            const SizedBox(height: 4),
+            for (final m in moc)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('• ${m.$1}${m.$2 != null ? ' — ${m.$2}' : ''}',
+                    style: TextStyle(fontSize: 10, color: cs.outline)),
+              ),
             if (y['chot_luc'] != null)
-              _Moc('Đã chốt yêu cầu', widget.fmt(y['chot_luc'])),
-            if (tt == 'hoan_thanh')
-              _Moc('Hoàn thành', widget.fmt(y['chot_luc'] ?? y['updated_at'])),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(y['mien_phi'] == true ? 'Miễn phí' : 'Tính phí',
+                    style: TextStyle(fontSize: 10, color: cs.outline)),
+              ),
           ],
         ),
       ),
@@ -747,35 +856,37 @@ class _YeuCauCardState extends State<_YeuCauCard> {
   }
 }
 
-class _Moc extends StatelessWidget {
-  const _Moc(this.label, this.time);
-  final String label;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Text('• $label — $time',
-            style: TextStyle(
-                fontSize: 10, color: Theme.of(context).colorScheme.outline)),
-      );
-}
-
 class _BinhLuanCard extends StatelessWidget {
   const _BinhLuanCard({
     required this.bl,
     required this.fmt,
     required this.onReply,
+    this.onToggleResolve,
+    this.onDelete,
+    this.dangXoa = false,
     this.isReply = false,
   });
   final Map<String, dynamic> bl;
   final String Function(dynamic) fmt;
   final VoidCallback onReply;
+  final VoidCallback? onToggleResolve;
+  final VoidCallback? onDelete;
+  final bool dangXoa;
   final bool isReply;
+
+  static const _nhanLoai = {
+    'nhan_vien': 'Nhân viên',
+    'khach_hang': 'Khách hàng',
+    'khach_vang_lai': 'Khách vãng lai',
+  };
 
   @override
   Widget build(BuildContext context) {
     final daGiaiQuyet = bl['da_giai_quyet'] == true;
+    final ten = bl['nguoi_binh_luan_ho_ten']?.toString() ??
+        _nhanLoai[bl['loai_nguoi_binh_luan']] ??
+        'Ẩn danh';
+    const styleNut = TextStyle(fontSize: 10);
     return Padding(
       padding: EdgeInsets.only(left: isReply ? 20 : 0, bottom: 6),
       child: Container(
@@ -794,7 +905,7 @@ class _BinhLuanCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${bl['nguoi_binh_luan_ho_ten'] ?? 'Ẩn danh'} · ${fmt(bl['created_at'])}',
+                    '$ten · ${fmt(bl['created_at'])}',
                     style: const TextStyle(
                         fontSize: 10, fontWeight: FontWeight.w600),
                   ),
@@ -807,12 +918,36 @@ class _BinhLuanCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(bl['noi_dung']?.toString() ?? '',
                 style: const TextStyle(fontSize: 12)),
-            InkWell(
-              onTap: onReply,
-              child: const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text('Trả lời', style: TextStyle(fontSize: 10)),
-              ),
+            Wrap(
+              spacing: 4,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 26),
+                      padding: const EdgeInsets.symmetric(horizontal: 6)),
+                  onPressed: onReply,
+                  child: const Text('Trả lời', style: styleNut),
+                ),
+                if (onToggleResolve != null)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 26),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        foregroundColor: Colors.green.shade700),
+                    onPressed: onToggleResolve,
+                    child: Text(daGiaiQuyet ? 'Bỏ giải quyết' : 'Đánh dấu xong',
+                        style: styleNut),
+                  ),
+                if (onDelete != null)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 26),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        foregroundColor: Colors.red.shade600),
+                    onPressed: dangXoa ? null : onDelete,
+                    child: const Text('Xoá', style: styleNut),
+                  ),
+              ],
             ),
           ],
         ),

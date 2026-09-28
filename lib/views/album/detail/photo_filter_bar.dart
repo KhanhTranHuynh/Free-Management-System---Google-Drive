@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'album_detail_constants.dart';
 
 /// Mô tả 1 ô lọc (dropdown). View cha quyết định hiện ô nào theo tab,
-/// giống các cờ showXxxFilter bên PhotoFilterBar.jsx.
+/// giống các cờ showXxxFilter của PhotoFilterBar.jsx.
 class FilterSpec {
   const FilterSpec({
     required this.label,
@@ -27,17 +27,22 @@ class PhotoFilterBar extends StatelessWidget {
     required this.activeTab,
     required this.searchController,
     required this.onSearchChanged,
+    this.tongSo,
     this.filters = const [],
     this.onChotTatCaAlbum,
     this.dangChotTatCaAlbum = false,
     this.onXoaCungTatCaAlbum,
     this.dangXoaCungTatCaAlbum = false,
     this.onTaiAnhVe,
+    this.dangTaiAnhVe = false,
+    this.soLuongTaiTatCa,
+    this.soLuongTaiBoLoc,
     this.onDoiChieuAnh,
     this.onUploadToanBo,
   });
 
   final String activeTab;
+  final int? tongSo;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final List<FilterSpec> filters;
@@ -47,12 +52,24 @@ class PhotoFilterBar extends StatelessWidget {
   final bool dangChotTatCaAlbum;
   final VoidCallback? onXoaCungTatCaAlbum;
   final bool dangXoaCungTatCaAlbum;
-  final VoidCallback? onTaiAnhVe;
+
+  /// Nhận 'tat_ca' | 'bo_loc'.
+  final ValueChanged<String>? onTaiAnhVe;
+  final bool dangTaiAnhVe;
+  final int? soLuongTaiTatCa;
+  final int? soLuongTaiBoLoc;
   final VoidCallback? onDoiChieuAnh;
   final VoidCallback? onUploadToanBo;
 
   @override
   Widget build(BuildContext context) {
+    final nhanTatCa = soLuongTaiTatCa != null
+        ? 'Tải tất cả ảnh trong album ($soLuongTaiTatCa)'
+        : 'Tải tất cả ảnh trong album';
+    final nhanBoLoc = soLuongTaiBoLoc != null
+        ? 'Tải ảnh theo bộ lọc hiện tại ($soLuongTaiBoLoc)'
+        : 'Tải ảnh theo bộ lọc hiện tại';
+
     final actions = <Widget>[
       if (onChotTatCaAlbum != null)
         FilledButton.icon(
@@ -68,10 +85,25 @@ class PhotoFilterBar extends StatelessWidget {
               dangXoaCungTatCaAlbum ? 'Đang xóa...' : 'Hủy yêu cầu chưa chốt'),
         ),
       if (onTaiAnhVe != null)
-        OutlinedButton.icon(
-          onPressed: onTaiAnhVe,
-          icon: const Icon(Icons.download, size: 16),
-          label: const Text('Tải ảnh drive'),
+        PopupMenuButton<String>(
+          enabled: !dangTaiAnhVe,
+          onSelected: onTaiAnhVe,
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'tat_ca', child: Text(nhanTatCa)),
+            PopupMenuItem(value: 'bo_loc', child: Text(nhanBoLoc)),
+          ],
+          child: IgnorePointer(
+            child: OutlinedButton.icon(
+              onPressed: dangTaiAnhVe ? null : () {},
+              icon: dangTaiAnhVe
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.download, size: 16),
+              label: const Text('Tải ảnh drive'),
+            ),
+          ),
         ),
       if (onDoiChieuAnh != null)
         OutlinedButton.icon(
@@ -88,13 +120,14 @@ class PhotoFilterBar extends StatelessWidget {
     ];
 
     final soDangLoc = filters.where((f) => f.value != 'tat_ca').length;
+    final tieuDe = AlbumTab.titles[activeTab] ?? '';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(AlbumTab.titles[activeTab] ?? '',
+          Text(tongSo == null ? tieuDe : '$tieuDe ($tongSo)',
               style:
                   const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),

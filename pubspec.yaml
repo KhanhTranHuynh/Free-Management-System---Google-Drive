@@ -30,6 +30,9 @@ dependencies:
 
   # Hiển thị logo SVG (widgets/app_header.dart)
   flutter_svg: ^2.0.10+1
+  http: ^1.6.0
+  share_plus: ^12.0.2
+  file_picker: ^11.0.3
 
 dev_dependencies:
   flutter_test:

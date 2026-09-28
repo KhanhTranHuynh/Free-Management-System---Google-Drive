@@ -4,9 +4,12 @@ import 'package:flutter/foundation.dart';
 
 import '../../../apis/models/api_exception.dart';
 import '../../../apis/services/album_api.dart';
+import '../../../apis/services/album_detail_api.dart';
 import '../../../apis/services/tep_anh_api.dart';
+import '../../../apis/services/trang_thai_album_api.dart';
 import '../../../apis/services/yeu_cau_chinh_sua_api.dart';
 import 'album_detail_constants.dart';
+import '../../../utils/tai_anh_util.dart';
 
 /// Tương ứng phần state + query + mutation của DetailAlbum.jsx.
 /// View chỉ lắng nghe controller và gọi hành động.
@@ -16,6 +19,8 @@ class AlbumDetailController extends ChangeNotifier {
     required this.albumApi,
     required this.tepAnhApi,
     required this.ycsApi,
+    required this.trangThaiApi,
+    required this.extraApi,
     this.onMessage,
   });
 
@@ -23,6 +28,8 @@ class AlbumDetailController extends ChangeNotifier {
   final AlbumApi albumApi;
   final TepAnhApi tepAnhApi;
   final YeuCauChinhSuaApi ycsApi;
+  final TrangThaiAlbumApi trangThaiApi;
+  final AlbumDetailApi extraApi;
 
   /// View gán để hiện SnackBar.
   void Function(String message)? onMessage;
@@ -40,10 +47,9 @@ class AlbumDetailController extends ChangeNotifier {
   String verAnhFilter = 'tat_ca'; // tat_ca | goc | <số>
   String lanYeuCauFilter = 'tat_ca';
   String lanChotFilter = 'tat_ca';
-  String tienDoFilter = 'tat_ca';
   String timKiem = '';
 
-  /// Meta bộ lọc (trang_thai_anh, version_anh, lan_yeu_cau, lan_chot, tien_do).
+  /// Meta bộ lọc (trang_thai_anh, version_anh, lan_yeu_cau, lan_chot).
   Map<String, dynamic>? boLocMeta;
 
   // ----- header -----
@@ -51,6 +57,7 @@ class AlbumDetailController extends ChangeNotifier {
   Map<String, dynamic> thongKe = {};
   bool isLoadingHeader = false;
   String? errorHeader;
+  List<Map<String, dynamic>> danhSachTrangThai = [];
 
   // ----- danh sách ảnh -----
   List<Map<String, dynamic>> anh = [];
@@ -69,13 +76,14 @@ class AlbumDetailController extends ChangeNotifier {
   bool dangChotTatCa = false;
   bool dangXoaCungTatCa = false;
   final Set<String> dangXoaYeuCauMotAnh = {};
+  bool dangTaiAnhVe = false;
+  ({int daXong, int tongSo})? tienDoTaiAnhVe;
 
   // ---------------------------------------------------------------
   // Getter dẫn xuất
   // ---------------------------------------------------------------
   bool get hasMore => anh.length < tongSo;
 
-  /// Ảnh đang được chọn trong danh sách đã tải (tương ứng idTepAnhDaChonHienThi).
   List<String> get idTepAnhDaChon => anh
       .where((a) => a['duoc_khach_chon'] == true)
       .map((a) => a['id_tep_anh'].toString())
@@ -85,13 +93,31 @@ class AlbumDetailController extends ChangeNotifier {
   int get soDaChon =>
       (thongKe['tong_hinh_da_chon'] as num?)?.toInt() ?? idTepAnhDaChon.length;
 
-  /// Album "hoàn thành"/"huỷ" thì khoá chỉnh sửa (tương ứng albumDaKhoa).
+  /// Trạng thái hiện tại của album, tra trong danh sách trạng thái
+  /// (giống trangThaiHienTai ở AlbumHeader.jsx).
+  Map<String, dynamic>? get trangThaiHienTai {
+    final a = album;
+    if (a == null) return null;
+    for (final t in danhSachTrangThai) {
+      final idT = t['id_trang_thai_album'];
+      final ma = t['ma_trang_thai'];
+      if ((idT != null && idT == a['id_trang_thai_album']) ||
+          (ma != null && (ma == a['ma_trang_thai'] || ma == a['trang_thai']))) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  /// Album "hoàn thành"/"huỷ" thì khoá chỉnh sửa (albumDaKhoa).
   bool get albumDaKhoa {
-    final ma = album?['ma_trang_thai'] ?? album?['trang_thai'];
+    final ma = trangThaiHienTai?['ma_trang_thai'] ??
+        album?['ma_trang_thai'] ??
+        album?['trang_thai'];
     return ma == 'hoan_thanh' || ma == 'huy';
   }
 
-  /// Tab hiển thị BottomActionBar.
+  /// BottomActionBar hiện ở tab "Tất cả ảnh" và "Đã chỉnh sửa".
   bool get hienBottomBar =>
       activeTab == AlbumTab.anh || activeTab == AlbumTab.daSua;
 
@@ -101,11 +127,8 @@ class AlbumDetailController extends ChangeNotifier {
 
   Map<String, dynamic> buildBoLoc() {
     final f = <String, dynamic>{};
-    if (activeTab == AlbumTab.anh) {
-      if (daChonFilter != 'tat_ca') f['da_chon'] = daChonFilter == 'da_chon';
-      if (trangThaiAnhFilter != 'tat_ca') {
-        f['trang_thai_anh'] = trangThaiAnhFilter;
-      }
+    if (activeTab == AlbumTab.anh && daChonFilter != 'tat_ca') {
+      f['da_chon'] = daChonFilter == 'da_chon';
     }
     if (activeTab == AlbumTab.yeuCau) {
       f['yeu_cau_chinh_sua'] = 'da_yeu_cau';
@@ -121,11 +144,13 @@ class AlbumDetailController extends ChangeNotifier {
     } else if (verAnhFilter != 'tat_ca') {
       f['version_anh'] = int.tryParse(verAnhFilter) ?? verAnhFilter;
     }
+    if (trangThaiAnhFilter != 'tat_ca') {
+      f['trang_thai_anh'] = trangThaiAnhFilter;
+    }
     if (lanYeuCauFilter != 'tat_ca') {
       f['lan_yeu_cau'] = int.tryParse(lanYeuCauFilter);
     }
     if (lanChotFilter != 'tat_ca') f['lan_chot'] = int.tryParse(lanChotFilter);
-    if (tienDoFilter != 'tat_ca') f['tien_do'] = tienDoFilter;
     final kw = timKiem.trim();
     if (kw.isNotEmpty) {
       f['tu_khoa'] = kw.length > 255 ? kw.substring(0, 255) : kw;
@@ -137,12 +162,25 @@ class AlbumDetailController extends ChangeNotifier {
   // Tải dữ liệu
   // ---------------------------------------------------------------
   Future<void> khoiTao() async {
-    await Future.wait([taiHeader(), taiDanhSachAnh(), taiBoLocMeta()]);
+    await Future.wait(
+        [taiHeader(), taiDanhSachAnh(), taiBoLocMeta(), taiTrangThai()]);
   }
 
-  /// Tương ứng useQuery ["album","tep-anh-bo-loc-meta"] bên React.
-  /// React truyền so_luong 100000; ở đây chỉ cần meta nên lấy 1 (nếu meta
-  /// phụ thuộc số lượng thì đổi lại).
+  /// useQuery ["trang-thai-album","danh-sach"]: lọc đang hoạt động + sắp xếp
+  /// theo thu_tu.
+  Future<void> taiTrangThai() async {
+    try {
+      final body = await trangThaiApi.danhSach(trang: 1, soLuong: 100);
+      final ds = List<Map<String, dynamic>>.from(body['du_lieu'] as List? ?? [])
+          .where((e) => e['dang_hoat_dong'] == true)
+          .toList()
+        ..sort((a, b) => ((a['thu_tu'] as num?)?.toInt() ?? 0)
+            .compareTo((b['thu_tu'] as num?)?.toInt() ?? 0));
+      danhSachTrangThai = ds;
+      _notify();
+    } catch (_) {}
+  }
+
   Future<void> taiBoLocMeta() async {
     try {
       boLocMeta = await tepAnhApi
@@ -165,13 +203,43 @@ class AlbumDetailController extends ChangeNotifier {
         .toList();
   }
 
-  List<Map<String, String>> get trangThaiOptions => _opts('trang_thai_anh');
-  List<Map<String, String>> get verAnhOptions =>
-      _opts('version_anh', zeroLaGoc: true);
+  /// Giống trangThaiOptionsFinal của PhotoFilterBar.jsx: thứ tự cố định
+  /// chưa yêu cầu -> đã yêu cầu -> đã chốt, rồi các option còn lại từ meta.
+  List<Map<String, String>> get trangThaiOptions {
+    const thuTu = ['chua_yeu_cau', 'da_yeu_cau', 'da_chot'];
+    const nhanMacDinh = {
+      'chua_yeu_cau': 'Chưa yêu cầu',
+      'da_yeu_cau': 'Đã yêu cầu',
+      'da_chot': 'Đã chốt',
+    };
+    final meta = _opts('trang_thai_anh');
+    final theoValue = {for (final m in meta) m['value']!: m};
+    return <Map<String, String>>[
+      for (final v in thuTu)
+        theoValue[v] ?? {'value': v, 'label': nhanMacDinh[v]!},
+      ...meta.where((m) => !thuTu.contains(m['value'])),
+    ];
+  }
+
+  /// Nếu meta không có version_anh thì suy ra từ danh sách ảnh đã tải.
+  List<Map<String, String>> get verAnhOptions {
+    final o = _opts('version_anh', zeroLaGoc: true);
+    if (o.isNotEmpty) return o;
+    final versions = anh
+        .map((a) => (a['lan_sua_hien_tai'] as num?)?.toInt() ?? 0)
+        .where((v) => v > 0)
+        .toSet()
+        .toList()
+      ..sort();
+    return [
+      {'value': 'goc', 'label': 'Ảnh gốc'},
+      for (final v in versions) {'value': '$v', 'label': 'Sửa lần $v'},
+    ];
+  }
+
   List<Map<String, String>> get lanYeuCauOptions {
     final o = _opts('lan_yeu_cau');
     if (o.isNotEmpty) return o;
-    // Fallback như lanYeuCauOptionsFallback bên React.
     final n = (album?['lan_chot_yeu_cau_chinh_sua'] as num?)?.toInt() ?? 0;
     return [
       for (var i = 1; i <= n; i++) {'value': '$i', 'label': 'Lần $i'}
@@ -179,7 +247,6 @@ class AlbumDetailController extends ChangeNotifier {
   }
 
   List<Map<String, String>> get lanChotOptions => _opts('lan_chot');
-  List<Map<String, String>> get tienDoOptions => _opts('tien_do');
 
   Future<void> taiHeader() async {
     isLoadingHeader = true;
@@ -222,8 +289,6 @@ class AlbumDetailController extends ChangeNotifier {
           List<Map<String, dynamic>>.from(body['du_lieu'] as List? ?? []);
       final pt = Map<String, dynamic>.from(body['phan_trang'] as Map? ?? {});
       tongSo = (pt['tong_so'] as num?)?.toInt() ?? list.length;
-      // Giả định: BE trả tong_hop kèm danh sách (React: tongHop từ
-      // useAnhAlbumPhanTrang). Nếu không có thì giữ thong_ke của header.
       final th = body['tong_hop'];
       if (th is Map) thongKe = {...thongKe, ...Map<String, dynamic>.from(th)};
       anh = append ? [...anh, ...list] : list;
@@ -256,16 +321,22 @@ class AlbumDetailController extends ChangeNotifier {
   // ---------------------------------------------------------------
   // Tab / filter
   // ---------------------------------------------------------------
+  /// Khớp handleChangeTab bên React (reset có điều kiện theo tab).
   void doiTab(String tab) {
     if (tab == activeTab) return;
     activeTab = tab;
-    trangThaiAnhFilter = 'tat_ca';
-    daChonFilter = 'tat_ca';
-    verAnhFilter = 'tat_ca';
-    lanYeuCauFilter = 'tat_ca';
-    lanChotFilter = 'tat_ca';
-    tienDoFilter = 'tat_ca';
     timKiem = '';
+    verAnhFilter = 'tat_ca';
+    if (tab != AlbumTab.anh) {
+      daChonFilter = 'tat_ca';
+      trangThaiAnhFilter = 'tat_ca';
+    }
+    lanChotFilter = 'tat_ca';
+    if (tab != AlbumTab.yeuCau &&
+        tab != AlbumTab.chotYeuCau &&
+        tab != AlbumTab.daSua) {
+      lanYeuCauFilter = 'tat_ca';
+    }
     _notify();
     unawaited(taiDanhSachAnh());
   }
@@ -282,7 +353,7 @@ class AlbumDetailController extends ChangeNotifier {
     unawaited(taiDanhSachAnh());
   }
 
-  /// key: ver_anh | lan_yeu_cau | lan_chot | tien_do
+  /// key: ver_anh | lan_yeu_cau | lan_chot
   void doiFilter(String key, String v) {
     switch (key) {
       case 'ver_anh':
@@ -291,8 +362,6 @@ class AlbumDetailController extends ChangeNotifier {
         lanYeuCauFilter = v;
       case 'lan_chot':
         lanChotFilter = v;
-      case 'tien_do':
-        tienDoFilter = v;
       default:
         return;
     }
@@ -360,6 +429,7 @@ class AlbumDetailController extends ChangeNotifier {
     _notify();
     try {
       await tepAnhApi.chonBoChonTepAnhTatCa(idAlbum: idAlbum, chon: chonMoi);
+      _msg(chonMoi ? 'Đã chọn tất cả ảnh' : 'Đã bỏ chọn tất cả ảnh');
       await Future.wait([taiHeader(), taiDanhSachAnh()]);
     } catch (_) {
       _msg('Cập nhật lựa chọn thất bại');
@@ -415,8 +485,16 @@ class AlbumDetailController extends ChangeNotifier {
     dangChotTatCa = true;
     _notify();
     try {
-      await ycsApi.chotTatCaTheoAlbum(idAlbum: idAlbum);
-      _msg('Chốt tất cả yêu cầu chỉnh sửa thành công');
+      final res = await ycsApi.chotTatCaTheoAlbum(idAlbum: idAlbum);
+      final lan = res['lan_chot'] ??
+          res['lan_chot_yeu_cau_chinh_sua'] ??
+          res['lan_chot_hien_tai'];
+      final conLai = res['so_lan_mien_phi_con_lai'];
+      var msg = 'Chốt yêu cầu chỉnh sửa';
+      if (lan != null) msg += ' lần $lan';
+      msg += ' thành công!';
+      if (conLai is num) msg += ' Bạn còn lại $conLai lần chỉnh sửa miễn phí.';
+      _msg(msg);
       await lamMoi();
     } catch (_) {
       _msg('Chốt tất cả yêu cầu chỉnh sửa thất bại');
@@ -440,12 +518,12 @@ class AlbumDetailController extends ChangeNotifier {
     _notify();
   }
 
-  // ---------------------------------------------------------------
-  /// Xoá yêu cầu chưa chốt của 1 ảnh (handleXoaYeuCauMotAnh bên React).
+  /// handleXoaYeuCauMotAnh bên React.
   Future<void> xoaYeuCauMotAnh(Map<String, dynamic> a, AlbumQuyen q) async {
     final id = a['id_tep_anh']?.toString();
-    if (id == null || !q.huyYeuCau || a['duoc_phep_huy_yeu_cau'] != true)
+    if (id == null || !q.huyYeuCau || a['duoc_phep_huy_yeu_cau'] != true) {
       return;
+    }
     if (dangXoaYeuCauMotAnh.contains(id)) return;
     dangXoaYeuCauMotAnh.add(id);
     _notify();
@@ -458,6 +536,44 @@ class AlbumDetailController extends ChangeNotifier {
     }
     dangXoaYeuCauMotAnh.remove(id);
     _notify();
+  }
+
+  // ---------------------------------------------------------------
+  // Tải ảnh drive (handleTaiAnhVe)
+  // ---------------------------------------------------------------
+  /// phamVi: 'tat_ca' | 'bo_loc'.
+  Future<void> taiAnhVe(String phamVi) async {
+    if (dangTaiAnhVe) return;
+    dangTaiAnhVe = true;
+    tienDoTaiAnhVe = null;
+    _notify();
+    try {
+      final ds = await extraApi.danhSachTepAnhDrive({
+        'id_album': idAlbum,
+        if (phamVi != 'tat_ca') ...buildBoLoc(),
+      });
+      if (ds.isEmpty) {
+        _msg('Không có ảnh để tải');
+        return;
+      }
+      tienDoTaiAnhVe = (daXong: 0, tongSo: ds.length);
+      _notify();
+      final loi = await TaiAnh.taiNhieuTuDrive(ds, (d, t) {
+        tienDoTaiAnhVe = (daXong: d, tongSo: t);
+        _notify();
+      });
+      _msg(loi > 0
+          ? 'Bỏ qua $loi ảnh tải lỗi từ Google Drive'
+          : 'Đã xử lý ${ds.length} ảnh');
+    } on ApiException catch (e) {
+      _msg(e.message.isNotEmpty ? e.message : 'Tải ảnh Drive về máy thất bại');
+    } catch (_) {
+      _msg('Tải ảnh Drive về máy thất bại');
+    } finally {
+      dangTaiAnhVe = false;
+      tienDoTaiAnhVe = null;
+      _notify();
+    }
   }
 
   void _msg(String s) => onMessage?.call(s);

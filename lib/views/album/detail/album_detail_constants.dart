@@ -1,5 +1,13 @@
 // Tương ứng TAB_CONFIG / XAC_NHAN / useCoQuyen trong DetailAlbum.jsx
 
+import '../../../stores/auth_store.dart';
+
+class AlbumConfig {
+  /// TODO: điền domain FE thật (config.CLIENT_URL bên React) để tạo link
+  /// chia sẻ / QR: {clientUrl}/chi-tiet-album/{ma_truy_cap_cong_khai}
+  static const String clientUrl = 'https://TODO-domain-fe';
+}
+
 class AlbumTab {
   static const anh = 'anh';
   static const yeuCau = 'yeu_cau';
@@ -30,20 +38,33 @@ class AlbumTab {
   };
 }
 
-/// Quyền của phiên hiện tại (tương ứng useCoQuyen + loaiPhien bên React).
-/// TODO: nối với hệ thống phân quyền thật của app Flutter.
+/// Quyền của phiên hiện tại — khớp các useCoQuyen(...) trong DetailAlbum.jsx.
+/// Dựng từ [AuthStore.coQuyen], KHÔNG hard-code.
 class AlbumQuyen {
   const AlbumQuyen({
-    this.laNhanVien = false,
-    this.xemMatKhau = false,
-    this.suaAlbum = false,
-    this.chonAnh = true,
-    this.taoYeuCau = true,
-    this.huyYeuCau = true,
-    this.suaYeuCau = false,
-    this.chotTatCa = false,
-    this.xoaCungTatCa = false,
+    required this.laNhanVien,
+    required this.xemMatKhau,
+    required this.suaAlbum,
+    required this.chonAnh,
+    required this.taoYeuCau,
+    required this.huyYeuCau,
+    required this.suaYeuCau,
+    required this.chotTatCa,
+    required this.xoaCungTatCa,
   });
+
+  factory AlbumQuyen.tuAuth(AuthStore auth) => AlbumQuyen(
+        // App Flutter là app nhân viên (loaiPhien == NHAN_VIEN bên React).
+        laNhanVien: auth.isLoggedIn,
+        xemMatKhau: auth.coQuyen('ALBUM', 'dat_mat_khau'),
+        suaAlbum: auth.coQuyen('ALBUM', 'sua'),
+        chonAnh: auth.coQuyen('TEP_ANH', 'chon'),
+        taoYeuCau: auth.coQuyen('YEU_CAU_CHINH_SUA', 'them'),
+        huyYeuCau: auth.coQuyen('YEU_CAU_CHINH_SUA', 'huy'),
+        suaYeuCau: auth.coQuyen('YEU_CAU_CHINH_SUA', 'sua'),
+        chotTatCa: auth.coQuyen('YEU_CAU_CHINH_SUA', 'chot'),
+        xoaCungTatCa: auth.coQuyen('YEU_CAU_CHINH_SUA', 'huy'),
+      );
 
   final bool laNhanVien;
   final bool xemMatKhau;
