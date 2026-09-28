@@ -37,7 +37,7 @@ import 'edit_tai_khoan_khach_hang.dart';
 /// - Pill tóm tắt lọc/sắp xếp bên dưới (bấm cũng mở modal) thay cho 3
 ///   dropdown to chiếm chỗ như trước.
 /// - Card dùng avatar màu (avatar_util), StatusIndicator, EmptyState,
-///   ErrorRetry dùng chung.
+///   ErrorRetry dùng chung. Nút Sửa / Xoá hiển thị trực tiếp trên card.
 /// Vẫn giữ infinite scroll (cuộn gần cuối tự tải thêm trang kế).
 class TaiKhoanKhachHangListView extends StatefulWidget {
   const TaiKhoanKhachHangListView({super.key});
@@ -712,8 +712,8 @@ class _Header extends StatelessWidget {
 
 // ============================================================
 // CARD 1 KHÁCH HÀNG — avatar màu viết tắt tên, badge danh mục, trạng thái,
-// nút Sửa (pill viền) + menu "..." cho Xoá; bên dưới là các dòng liên hệ
-// (SĐT đăng nhập có "Gọi ngay", SĐT liên hệ, email có copy).
+// nút Sửa + nút Xoá hiển thị trực tiếp (xếp dọc bên phải); bên dưới là các
+// dòng liên hệ (SĐT đăng nhập có "Gọi ngay", SĐT liên hệ, email có copy).
 // ============================================================
 class _KhachHangCard extends StatelessWidget {
   const _KhachHangCard({
@@ -765,8 +765,6 @@ class _KhachHangCard extends StatelessWidget {
     final avatarFg = contrastFg(avatarBg);
 
     final danhMucIdx = avatarIndex(tenDanhMuc);
-
-    final coMenu = coQuyenXoa;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -834,44 +832,45 @@ class _KhachHangCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (coQuyenSua) ...[
-                const SizedBox(width: 4),
-                OutlinedButton(
-                  onPressed: onSua,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                  child: const Text('Sửa'),
-                ),
-              ],
-              if (coMenu)
-                PopupMenuButton<String>(
-                  tooltip: 'Thêm',
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Icons.more_vert_rounded,
-                      color: colorScheme.onSurfaceVariant),
-                  onSelected: (v) {
-                    if (v == 'xoa') onXoa();
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem<String>(
-                      value: 'xoa',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline_rounded,
-                              size: 18, color: colorScheme.error),
-                          const SizedBox(width: 8),
-                          Text('Xoá',
-                              style: TextStyle(color: colorScheme.error)),
-                        ],
+              if (coQuyenSua || coQuyenXoa) ...[
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (coQuyenSua)
+                      OutlinedButton(
+                        onPressed: onSua,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(
+                              color: AppColors.primary.withOpacity(0.5)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 34),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Sửa'),
                       ),
-                    ),
+                    if (coQuyenSua && coQuyenXoa) const SizedBox(width: 6),
+                    if (coQuyenXoa)
+                      OutlinedButton(
+                        onPressed: onXoa,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colorScheme.error,
+                          side: BorderSide(
+                              color: colorScheme.error.withOpacity(0.5)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 34),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Xoá'),
+                      ),
                   ],
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),

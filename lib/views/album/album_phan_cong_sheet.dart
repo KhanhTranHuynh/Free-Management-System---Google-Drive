@@ -5,9 +5,22 @@ import 'package:flutter/material.dart';
 import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/album_phan_cong_api.dart';
+// TODO: chỉnh lại đường dẫn cho khớp file chứa showAppModal.
+import '../../components/app_modal.dart';
 import 'album_events.dart';
 
-/// Sheet "Phân công phụ trách" cho 1 album.
+/// Mở modal "Phân công phụ trách" (showAppModal dạng bottom sheet) cho 1
+/// album — cùng khuôn mẫu với `showAddAlbumModal`/`showEditAlbumModal`:
+/// tiêu đề, khung bottom sheet và nút đóng đều do `showAppModal` đảm
+/// nhiệm, hàm public chỉ dựng `builder`.
+///
+/// Khác với 2 modal kia: sheet này KHÔNG có nút "Lưu" chung ở chân — mỗi
+/// hành động (thêm người, huỷ phân công, đổi người báo cáo) tự gọi API
+/// và lưu ngay lập tức, nên không cần `footerBuilder`/handle nối
+/// builder↔footer. Việc báo cho `AlbumListView` tải lại danh sách cũng
+/// không phụ thuộc giá trị trả về của modal mà bắn qua
+/// `AlbumEvents.instance.baoCanTaiLai()` ngay sau mỗi hành động thành
+/// công (có thể xảy ra nhiều lần trong lúc sheet còn mở).
 ///
 /// Convert từ `PhanCongAlbumModal` (React). Khác biệt chính so với bản
 /// React:
@@ -15,16 +28,29 @@ import 'album_events.dart';
 ///   `notifyApiByCode`; ở đây gọi thẳng `AlbumPhanCongApi` trong
 ///   try/catch và tự hiện SnackBar, khớp pattern `AlbumEditSheet`.
 /// - `queryClient.invalidateQueries(['album'])` → bắn
-///   `AlbumEvents.instance` để `AlbumListView` tự `_taiLai()` (khớp cách
-///   sheet Thêm/Sửa đang báo hiệu list cha refresh qua giá trị trả về
-///   `pop(true)`; ở đây bắn thêm event vì phân công có thể đổi trong khi
-///   sheet còn mở, không đợi đóng sheet mới refresh danh sách cha).
+///   `AlbumEvents.instance` để `AlbumListView` tự `_taiLai()`.
 /// - `Autocomplete`/`DateTimePicker` (React) → bottom sheet chọn nhân
 ///   viên (tái dùng ý tưởng `_moChonKhachHang` bên `AlbumEditSheet`) và
 ///   `showDatePicker` + `showTimePicker` gộp lại.
-class AlbumPhanCongSheet extends StatefulWidget {
-  const AlbumPhanCongSheet({
-    super.key,
+Future<void> showAlbumPhanCongModal(
+  BuildContext context, {
+  required Map<String, dynamic> album,
+  required List<Map<String, dynamic>> nhanVienOptions,
+}) {
+  return showAppModal<void>(
+    context,
+    title: 'Phân công phụ trách - ${album['ten_album'] ?? ''}',
+    type: AppModalType.bottomSheet,
+    closeOnBackdropClick: true,
+    builder: (_) => _AlbumPhanCongForm(
+      album: album,
+      nhanVienOptions: nhanVienOptions,
+    ),
+  );
+}
+
+class _AlbumPhanCongForm extends StatefulWidget {
+  const _AlbumPhanCongForm({
     required this.album,
     required this.nhanVienOptions,
   });
@@ -33,10 +59,10 @@ class AlbumPhanCongSheet extends StatefulWidget {
   final List<Map<String, dynamic>> nhanVienOptions;
 
   @override
-  State<AlbumPhanCongSheet> createState() => _AlbumPhanCongSheetState();
+  State<_AlbumPhanCongForm> createState() => _AlbumPhanCongFormState();
 }
 
-class _AlbumPhanCongSheetState extends State<AlbumPhanCongSheet> {
+class _AlbumPhanCongFormState extends State<_AlbumPhanCongForm> {
   final _phanCongApi = AlbumPhanCongApi(ApiRequestManager.instance);
 
   String get _idAlbum => widget.album['id_album'].toString();
@@ -326,63 +352,26 @@ class _AlbumPhanCongSheetState extends State<AlbumPhanCongSheet> {
   }
 
   // ---------------------------------------------------------------------
-  // UI
+  // UI — chỉ trả về phần thân; tiêu đề + nút đóng + khung bottom sheet đã
+  // do showAppModal đảm nhiệm, khớp mẫu showAddAlbumModal/
+  // showEditAlbumModal. Sheet này không có footer chung (mỗi hành động tự
+  // lưu ngay) nên không truyền footerBuilder.
   // ---------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.9,
-      maxChildSize: 0.98,
-      builder: (context, scrollController) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Phân công phụ trách - ${widget.album['ten_album'] ?? ''}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _headerDanhSach(),
-                      const SizedBox(height: 12),
-                      if (_hienFormThem) ...[
-                        _formThem(),
-                        const SizedBox(height: 16),
-                      ],
-                      _danhSachPhuTrachWidget(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _headerDanhSach(),
+        const SizedBox(height: 12),
+        if (_hienFormThem) ...[
+          _formThem(),
+          const SizedBox(height: 16),
+        ],
+        _danhSachPhuTrachWidget(),
+      ],
     );
   }
 

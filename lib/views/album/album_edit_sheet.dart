@@ -7,19 +7,98 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/album_api.dart';
 import '../../apis/services/tai_khoan_khach_hang_api.dart';
 import '../../components/app_images.dart';
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật trong dự án.
+import '../../configs/app_colors.dart';
+import '../../components/app_date_picker.dart';
+import '../../components/app_modal.dart';
+// TODO: chỉnh lại đường dẫn/tên class/tham số cho khớp app_text_input.dart.
+import '../../components/app_text_input.dart';
 
-/// Sửa album.
+/// Mở modal "Sửa album" (showAppModal dạng bottom sheet) — cùng khuôn mẫu
+/// với `showAddAlbumModal`: hàm public chỉ dựng `showAppModal`, tách phần
+/// thân (builder) và chân nút Huỷ/Lưu (footerBuilder) qua một handle
+/// (`_AlbumEditHandle`) để 2 builder độc lập vẫn nói chuyện được với nhau.
 ///
-/// FIX so với bản trước: khối "Ảnh hiện có" giờ tải qua
+/// Trả về data album vừa cập nhật (Map) hoặc `true` nếu BE không trả
+/// `data` khi cập nhật thành công; trả về `null` nếu người dùng đóng modal
+/// không lưu. => Nơi gọi chỉ cần kiểm tra `ket != null` để tải lại danh sách.
+///
+/// FIX so với bản trước: khối "Ảnh hiện có" tải qua
 /// `AlbumApi.danhSachTepAnh` (phân trang thật, mặc định 24 ảnh/lần) thay
 /// vì đọc tạm từ `album['danh_sach_anh']`/`chiTiet()['danh_sach_anh']` —
 /// khớp `useAnhAlbumPhanTrang` bên React. Không còn phụ thuộc field
 /// `danh_sach_anh` trong payload danh sách/chi tiết album nữa.
-class AlbumEditSheet extends StatefulWidget {
-  const AlbumEditSheet({
-    super.key,
+Future<Object?> showEditAlbumModal(
+  BuildContext context, {
+  required Map<String, dynamic> album,
+  required List<Map<String, dynamic>> khachHangOptions,
+}) {
+  final handle = _AlbumEditHandle();
+
+  return showAppModal<Object?>(
+    context,
+    title: 'Cập nhật album',
+    type: AppModalType.bottomSheet,
+    // Form có dữ liệu nhập dở -> không đóng khi bấm nền (modal sẽ rung).
+    closeOnBackdropClick: false,
+    builder: (_) => _AlbumEditForm(
+      album: album,
+      khachHangOptions: khachHangOptions,
+      handle: handle,
+    ),
+    footerBuilder: (ctx) => ValueListenableBuilder<bool>(
+      valueListenable: handle.dangLuu,
+      builder: (_, dangLuu, __) => Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: dangLuu ? null : () => Navigator.of(ctx).pop(),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('Huỷ'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: dangLuu ? null : () => handle.luu?.call(),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: dangLuu
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Lưu',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Cầu nối giữa phần thân (form) và chân (nút Huỷ/Lưu) của modal — vì
+/// showAppModal tách `builder` và `footerBuilder` thành 2 builder riêng.
+class _AlbumEditHandle {
+  final ValueNotifier<bool> dangLuu = ValueNotifier<bool>(false);
+  Future<void> Function()? luu;
+}
+
+class _AlbumEditForm extends StatefulWidget {
+  const _AlbumEditForm({
     required this.album,
     required this.khachHangOptions,
+    required this.handle,
   });
 
   /// Dữ liệu album lấy từ item trong danh sách (đủ dùng để dựng form ngay,
@@ -31,11 +110,13 @@ class AlbumEditSheet extends StatefulWidget {
   /// đầu trước khi autocomplete tự fetch theo từ khoá.
   final List<Map<String, dynamic>> khachHangOptions;
 
+  final _AlbumEditHandle handle;
+
   @override
-  State<AlbumEditSheet> createState() => _AlbumEditSheetState();
+  State<_AlbumEditForm> createState() => _AlbumEditFormState();
 }
 
-class _AlbumEditSheetState extends State<AlbumEditSheet> {
+class _AlbumEditFormState extends State<_AlbumEditForm> {
   // TODO: thay bằng config.MAU_SAC_MAC_DINH thật khi có file config Dart
   // tương ứng để đối chiếu — tạm giữ giá trị khớp màu primary phổ biến.
   static const String _mauSacMacDinh = '#3B82F6';
@@ -52,7 +133,6 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
   // ----- controllers form -----
   late final TextEditingController _tenAlbumController;
-  late final TextEditingController _ngayChupController;
   late final TextEditingController _ghiChuController;
   late final TextEditingController _soLanChinhSuaController;
   late final TextEditingController _mauSacController;
@@ -61,6 +141,9 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   final _timKiemKhachHangController = TextEditingController();
 
   // ----- state form -----
+  // Ngày chụp lưu dạng ISO yyyy-MM-dd (đúng định dạng BE cần) — chính là
+  // giá trị của DatePickerField, khớp mẫu showAddAlbumModal.
+  String? _ngayChupIso;
   Map<String, dynamic>? _khachHangDaChon;
   bool _khongGioiHanChinhSua = false;
   bool _choPhepTai = true;
@@ -95,24 +178,22 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
   bool get _conAnhDeTai => _anhHienCo.length < _anhTongSo;
 
-  bool _dangLuu = false;
-
   String get _idAlbum => widget.album['id_album'].toString();
 
   @override
   void initState() {
     super.initState();
+    widget.handle.luu = _luu;
+
     final album = widget.album;
 
     _tenAlbumController =
         TextEditingController(text: album['ten_album']?.toString() ?? '');
 
     final ngayChupRaw = album['ngay_chup']?.toString();
-    _ngayChupController = TextEditingController(
-      text: (ngayChupRaw != null && ngayChupRaw.length >= 10)
-          ? ngayChupRaw.substring(0, 10)
-          : '',
-    );
+    _ngayChupIso = (ngayChupRaw != null && ngayChupRaw.length >= 10)
+        ? ngayChupRaw.substring(0, 10)
+        : null;
 
     final laKhongGioiHan = album['so_lan_chinh_sua_mien_phi'] == null;
     _khongGioiHanChinhSua = laKhongGioiHan;
@@ -134,8 +215,14 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
     _khachHangHienTaiPin = _timOptionKhachHangHienTai(album);
     _khachHangDaChon = _khachHangHienTaiPin;
-    _khachHangOptions =
-        _khachHangHienTaiPin != null ? [_khachHangHienTaiPin!] : [];
+    final tuThamSo = widget.khachHangOptions;
+    _khachHangOptions = _khachHangHienTaiPin != null
+        ? [
+            _khachHangHienTaiPin!,
+            ...tuThamSo.where((o) =>
+                o['id_tai_khoan_khach_hang'] != _khachHangHienTaiPin!['value']),
+          ]
+        : tuThamSo;
 
     _timKiemKhachHangController.addListener(_onTimKiemKhachHangChanged);
     unawaited(_taiChiTiet());
@@ -145,10 +232,10 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
   @override
   void dispose() {
+    widget.handle.luu = null;
     _debounceKhachHang?.cancel();
     _timKiemKhachHangController.dispose();
     _tenAlbumController.dispose();
-    _ngayChupController.dispose();
     _ghiChuController.dispose();
     _soLanChinhSuaController.dispose();
     _mauSacController.dispose();
@@ -197,7 +284,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
 
         final ngayChupRaw = ct['ngay_chup']?.toString();
         if (ngayChupRaw != null && ngayChupRaw.length >= 10) {
-          _ngayChupController.text = ngayChupRaw.substring(0, 10);
+          _ngayChupIso = ngayChupRaw.substring(0, 10);
         }
 
         final laKhongGioiHan = ct['so_lan_chinh_sua_mien_phi'] == null;
@@ -500,7 +587,8 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   }
 
   // ---------------------------------------------------------------------
-  // Validate + Lưu
+  // Validate + Lưu — khớp mẫu showAddAlbumModal: guard chống double-submit,
+  // báo tiến trình qua handle.dangLuu để footer (nút Lưu) tự cập nhật.
   // ---------------------------------------------------------------------
 
   bool _validate() {
@@ -548,19 +636,19 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   }
 
   Future<void> _luu() async {
-    if (_dangLuu) return;
+    if (widget.handle.dangLuu.value) return;
+    // Blur ô đang nhập dở (vd ô số lần chỉnh sửa) để giá trị kịp commit.
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!_validate()) return;
 
-    setState(() => _dangLuu = true);
+    widget.handle.dangLuu.value = true;
     try {
       final soLanText = _soLanChinhSuaController.text.trim();
       final payload = <String, dynamic>{
         'id_album': _idAlbum,
         'ten_album': _tenAlbumController.text.trim(),
         'tai_khoan_khach_hang_id': _khachHangDaChon?['value'],
-        'ngay_chup': _ngayChupController.text.trim().isEmpty
-            ? null
-            : _ngayChupController.text.trim(),
+        'ngay_chup': _ngayChupIso,
         'so_lan_chinh_sua_mien_phi': _khongGioiHanChinhSua
             ? null
             : (soLanText.isEmpty ? null : int.tryParse(soLanText)),
@@ -600,103 +688,39 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
     } catch (_) {
       _thongBao('Cập nhật album thất bại');
     } finally {
-      if (mounted) setState(() => _dangLuu = false);
+      widget.handle.dangLuu.value = false;
     }
   }
 
-  Future<void> _chonNgayChup() async {
-    final ket = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2015),
-      lastDate: DateTime.now(),
-      initialDate: DateTime.now(),
-    );
-    if (ket == null) return;
-    setState(() {
-      _ngayChupController.text =
-          '${ket.year.toString().padLeft(4, '0')}-${ket.month.toString().padLeft(2, '0')}-${ket.day.toString().padLeft(2, '0')}';
-    });
-  }
+  InputDecoration _deco(String label, {String? errorText}) => InputDecoration(
+        labelText: label,
+        errorText: errorText,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      );
 
   // ---------------------------------------------------------------------
-  // UI
+  // UI — chỉ trả về phần thân form; header (title) và footer (Huỷ/Lưu) đã
+  // do showAppModal/footerBuilder đảm nhiệm, khớp mẫu showAddAlbumModal.
   // ---------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.92,
-      maxChildSize: 0.98,
-      builder: (context, scrollController) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_dangTaiChiTiet)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: LinearProgressIndicator(minHeight: 2),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Cập nhật album',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const Spacer(),
-                  if (_dangTaiChiTiet)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _muc1ThongTin(),
-                      const SizedBox(height: 24),
-                      _muc2AnhHienCo(),
-                      const SizedBox(height: 24),
-                      _muc3QuyenTruyCap(),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed:
-                          _dangLuu ? null : () => Navigator.of(context).pop(),
-                      child: const Text('Huỷ'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _dangLuu ? null : _luu,
-                      child: _dangLuu
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Lưu'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+        _muc1ThongTin(),
+        const SizedBox(height: 24),
+        _muc2AnhHienCo(),
+        const SizedBox(height: 24),
+        _muc3QuyenTruyCap(),
+      ],
     );
   }
 
@@ -718,54 +742,61 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
   }
 
   Widget _muc1ThongTin() {
+    final homNay = DateTime.now();
+    final homNayIso =
+        '${homNay.year.toString().padLeft(4, '0')}-${homNay.month.toString().padLeft(2, '0')}-${homNay.day.toString().padLeft(2, '0')}';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeading(1, 'Thông tin album'),
-        TextField(
+        AppTextInput(
           controller: _tenAlbumController,
-          decoration: InputDecoration(
-            labelText: 'Tên album *',
-            errorText: _loiTenAlbum,
-          ),
+          label: 'Tên album *',
+          errorText: _loiTenAlbum,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) {
+            if (_loiTenAlbum != null) setState(() => _loiTenAlbum = null);
+          },
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _ngayChupController,
-          readOnly: true,
-          onTap: _chonNgayChup,
-          decoration: const InputDecoration(
-            labelText: 'Ngày chụp',
-            suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
-          ),
+        const SizedBox(height: 14),
+        DatePickerField(
+          label: 'Ngày chụp',
+          value: _ngayChupIso,
+          min: '2015-01-01',
+          max: homNayIso,
+          selectedColor: AppColors.primary,
+          onChanged: (v) => setState(() => _ngayChupIso = v),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         InkWell(
           onTap: _moChonKhachHang,
           child: InputDecorator(
-            decoration: const InputDecoration(labelText: 'Khách hàng'),
+            decoration: _deco('Khách hàng'),
             child: Text(
               _khachHangDaChon?['label']?.toString() ?? 'Gõ để tìm khách hàng',
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+        // TODO: AppTextInput chưa có tham số enabled/readOnly nên tạm dùng
+        // TextField cho ô chỉ-đọc này. Khi thêm tham số vào AppTextInput
+        // thì đổi lại (khớp cách xử lý gap của AppTextInput ở form thêm).
         TextField(
           controller: _duongDanDriveController,
           readOnly: true,
           enabled: false,
-          decoration: const InputDecoration(
-            labelText: 'Đường dẫn Drive (dùng để upload ảnh)',
-          ),
+          decoration: _deco('Đường dẫn Drive (dùng để upload ảnh)'),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+        // TODO: AppTextInput chưa có tham số maxLines nên tạm dùng TextField
+        // cho ô nhiều dòng. Khi thêm maxLines vào AppTextInput thì đổi lại.
         TextField(
           controller: _ghiChuController,
           maxLines: 2,
-          decoration:
-              const InputDecoration(labelText: 'Ghi chú (không bắt buộc)'),
+          decoration: _deco('Ghi chú (không bắt buộc)'),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -773,14 +804,14 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // TODO: AppTextInput chưa có tham số keyboardType/enabled
+                  // nên tạm dùng TextField cho ô số này.
                   TextField(
                     controller: _soLanChinhSuaController,
                     keyboardType: TextInputType.number,
                     enabled: !_khongGioiHanChinhSua,
-                    decoration: InputDecoration(
-                      labelText: 'Số lần chỉnh sửa',
-                      errorText: _loiSoLanChinhSua,
-                    ),
+                    decoration:
+                        _deco('Số lần chỉnh sửa', errorText: _loiSoLanChinhSua),
                   ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
@@ -801,9 +832,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
             Expanded(
               child: TextField(
                 controller: _mauSacController,
-                decoration: InputDecoration(
-                  labelText: 'Màu lịch',
-                  errorText: _loiMauSac,
+                decoration: _deco('Màu lịch', errorText: _loiMauSac).copyWith(
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(10),
                     child: Container(
@@ -909,7 +938,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
                               color: seXoa
                                   ? Colors.red
                                   : laThumb
-                                      ? Theme.of(context).colorScheme.primary
+                                      ? AppColors.primary
                                       : Colors.grey.shade300,
                               width: laThumb ? 2 : 1,
                             ),
@@ -1001,6 +1030,10 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
         // useAlbumFileUpload/TepAnhApi tương ứng phía Dart để đối chiếu).
         OutlinedButton.icon(
           onPressed: null,
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999)),
+          ),
           icon: const Icon(Icons.add_photo_alternate_outlined),
           label: const Text('Thêm ảnh mới (đang phát triển)'),
         ),
@@ -1036,7 +1069,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.06),
+            color: AppColors.primary.withOpacity(0.06),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Text(
@@ -1049,6 +1082,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
+          activeColor: AppColors.primary,
           title: const Text('Cho phép truy cập công khai'),
           subtitle: Text(
             _choPhepXemKhongDangNhap
@@ -1061,6 +1095,7 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
+          activeColor: AppColors.primary,
           title: const Text('Cho phép tải ảnh'),
           subtitle: const Text(
             'Khách hàng có thể tải ảnh gốc về thiết bị.',
@@ -1070,13 +1105,13 @@ class _AlbumEditSheetState extends State<AlbumEditSheet> {
           onChanged: (v) => setState(() => _choPhepTai = v),
         ),
         const SizedBox(height: 8),
-        TextField(
+        AppTextInput(
           controller: _matKhauController,
-          decoration: InputDecoration(
-            labelText: 'Mật khẩu truy cập album',
-            hintText: 'Để trống nếu không muốn đổi mật khẩu',
-            errorText: _loiMatKhau,
-          ),
+          label: 'Mật khẩu truy cập album',
+          errorText: _loiMatKhau,
+          onChanged: (_) {
+            if (_loiMatKhau != null) setState(() => _loiMatKhau = null);
+          },
         ),
         const SizedBox(height: 4),
         Text(
@@ -1106,8 +1141,7 @@ class _NhanNho extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
-        color:
-            (mauNen ?? Theme.of(context).colorScheme.primary).withOpacity(0.9),
+        color: (mauNen ?? AppColors.primary).withOpacity(0.9),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(

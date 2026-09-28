@@ -3,42 +3,99 @@ import 'package:flutter/material.dart';
 import '../../apis/api_request_manager.dart';
 import '../../apis/models/api_exception.dart';
 import '../../apis/services/album_api.dart';
+// TODO: chỉnh lại đường dẫn cho khớp vị trí thật trong dự án.
+import '../../configs/app_colors.dart';
+import '../../components/app_date_picker.dart';
+import '../../components/app_modal.dart';
+// TODO: chỉnh lại đường dẫn/tên class/tham số cho khớp app_text_input.dart.
+import '../../components/app_text_input.dart';
 
-/// Form Thêm album — ĐÃ nối API thật (`AlbumApi.taoMoi`).
+/// Mở modal "Thêm album" (showAppModal dạng bottom sheet).
 ///
-/// FIX so với bản mẫu UI trước:
-///  1. `_luu()` gọi thẳng `AlbumApi.taoMoi(payload)` thay vì
-///     `Future.delayed` giả lập; bắt `ApiException` để hiện lỗi qua
-///     SnackBar — khớp convention try/catch của `danhSach`/`taoMoi`/
-///     `capNhat` (không dùng notifyApiByCode vì các method này throw,
-///     không tự toast như `doiTrangThai`).
-///  2. `khachHangDaChon` đọc đúng key `id_tai_khoan_khach_hang` — vì
-///     `widget.khachHangOptions` là data thô từ
-///     `TaiKhoanKhachHangApi.layDanhSach` (không phải cặp
-///     `{label, value}` như bên `AlbumEditSheet`).
-///  3. `ngay_chup` lưu dưới dạng ISO `yyyy-MM-dd` (BE cần định dạng này,
-///     khớp cách `AlbumEditSheet`/`edit.jsx` xử lý field này), chỉ hiển
-///     thị `d/M/yyyy` cho người dùng dễ đọc qua `_ngayChupHienThi`.
-///  4. Thêm validate tối thiểu: tên album bắt buộc — khớp validate bên
-///     `AlbumEditSheet`/`edit.jsx`.
-///
-/// Trả về data album vừa tạo (hoặc `true` nếu BE không trả `data`) qua
-/// `Navigator.pop` khi tạo thành công, để `AlbumListView` biết mà tải lại
-/// danh sách — khớp prop `onCreated` bên React.
-class AlbumAddSheet extends StatefulWidget {
-  const AlbumAddSheet({super.key, required this.khachHangOptions});
+/// Trả về data album vừa tạo (Map) hoặc `true` nếu BE không trả `data`
+/// khi tạo thành công; trả về `null` nếu người dùng đóng modal không lưu.
+/// => Nơi gọi chỉ cần kiểm tra `ket != null` để tải lại danh sách.
+Future<Object?> showAddAlbumModal(
+  BuildContext context, {
+  required List<Map<String, dynamic>> khachHangOptions,
+}) {
+  final handle = _AlbumAddHandle();
 
-  final List<Map<String, dynamic>> khachHangOptions;
-
-  @override
-  State<AlbumAddSheet> createState() => _AlbumAddSheetState();
+  return showAppModal<Object?>(
+    context,
+    title: 'Thêm album',
+    type: AppModalType.bottomSheet,
+    // Form có dữ liệu nhập dở -> không đóng khi bấm nền (modal sẽ rung).
+    closeOnBackdropClick: false,
+    builder: (_) => _AlbumAddForm(
+      khachHangOptions: khachHangOptions,
+      handle: handle,
+    ),
+    footerBuilder: (ctx) => ValueListenableBuilder<bool>(
+      valueListenable: handle.dangLuu,
+      builder: (_, dangLuu, __) => Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: dangLuu ? null : () => Navigator.of(ctx).pop(),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('Hủy'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: dangLuu ? null : () => handle.luu?.call(),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: dangLuu
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Lưu',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
-class _AlbumAddSheetState extends State<AlbumAddSheet> {
+/// Cầu nối giữa phần thân (form) và chân (nút Hủy/Lưu) của modal — vì
+/// showAppModal tách `builder` và `footerBuilder` thành 2 builder riêng.
+class _AlbumAddHandle {
+  final ValueNotifier<bool> dangLuu = ValueNotifier<bool>(false);
+  Future<void> Function()? luu;
+}
+
+class _AlbumAddForm extends StatefulWidget {
+  const _AlbumAddForm({
+    required this.khachHangOptions,
+    required this.handle,
+  });
+
+  final List<Map<String, dynamic>> khachHangOptions;
+  final _AlbumAddHandle handle;
+
+  @override
+  State<_AlbumAddForm> createState() => _AlbumAddFormState();
+}
+
+class _AlbumAddFormState extends State<_AlbumAddForm> {
   final _api = AlbumApi(ApiRequestManager.instance);
 
   final _tenAlbumController = TextEditingController();
-  final _ngayChupController = TextEditingController(); // hiển thị d/M/yyyy
   final _duongDanDriveController = TextEditingController();
   final _ghiChuController = TextEditingController();
   final _matKhauController = TextEditingController();
@@ -46,17 +103,22 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
   Map<String, dynamic>? _khachHangDaChon;
   bool _choPhepTai = true;
   bool _choPhepTruyCapCongKhai = false;
-  bool _dangLuu = false;
   String? _loiTenAlbum;
 
-  // Ngày chụp lưu riêng dạng ISO (yyyy-MM-dd) để gửi API — tách khỏi
-  // `_ngayChupController` vì controller chỉ dùng để HIỂN THỊ d/M/yyyy.
-  DateTime? _ngayChupDaChon;
+  // Ngày chụp lưu dạng ISO yyyy-MM-dd (đúng định dạng BE cần) — chính là
+  // giá trị của DatePickerField.
+  String? _ngayChupIso;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.handle.luu = _luu;
+  }
 
   @override
   void dispose() {
+    widget.handle.luu = null;
     _tenAlbumController.dispose();
-    _ngayChupController.dispose();
     _duongDanDriveController.dispose();
     _ghiChuController.dispose();
     _matKhauController.dispose();
@@ -78,31 +140,28 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
     return loiTen == null;
   }
 
-  String _isoDate(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String? _trimOrNull(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
+  }
 
   Future<void> _luu() async {
-    if (_dangLuu) return;
+    if (widget.handle.dangLuu.value) return;
+    // Blur ô đang nhập dở (vd ô ngày) để giá trị kịp được commit.
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!_validate()) return;
 
-    setState(() => _dangLuu = true);
+    widget.handle.dangLuu.value = true;
     try {
       final payload = <String, dynamic>{
         'ten_album': _tenAlbumController.text.trim(),
         'tai_khoan_khach_hang_id': _khachHangDaChon?['id_tai_khoan_khach_hang'],
-        'ngay_chup':
-            _ngayChupDaChon != null ? _isoDate(_ngayChupDaChon!) : null,
-        'duong_dan_drive': _duongDanDriveController.text.trim().isEmpty
-            ? null
-            : _duongDanDriveController.text.trim(),
-        'ghi_chu': _ghiChuController.text.trim().isEmpty
-            ? null
-            : _ghiChuController.text.trim(),
+        'ngay_chup': _ngayChupIso,
+        'duong_dan_drive': _trimOrNull(_duongDanDriveController),
+        'ghi_chu': _trimOrNull(_ghiChuController),
         'cho_phep_xem_khong_dang_nhap': _choPhepTruyCapCongKhai,
         'cho_phep_tai': _choPhepTai,
-        'mat_khau_truy_cap': _matKhauController.text.trim().isEmpty
-            ? null
-            : _matKhauController.text.trim(),
+        'mat_khau_truy_cap': _trimOrNull(_matKhauController),
       };
 
       final ket = await _api.taoMoi(payload);
@@ -115,121 +174,96 @@ class _AlbumAddSheetState extends State<AlbumAddSheet> {
     } catch (_) {
       _thongBao('Đã có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
-      if (mounted) setState(() => _dangLuu = false);
+      widget.handle.dangLuu.value = false;
     }
   }
 
-  Future<void> _chonNgayChup() async {
-    final ket = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2015),
-      lastDate: DateTime.now(),
-      initialDate: _ngayChupDaChon ?? DateTime.now(),
-    );
-    if (ket == null) return;
-    setState(() {
-      _ngayChupDaChon = ket;
-      _ngayChupController.text = '${ket.day}/${ket.month}/${ket.year}';
-    });
-  }
+  InputDecoration _deco(String label, {String? errorText}) => InputDecoration(
+        labelText: label,
+        errorText: errorText,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      );
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Thêm album', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _tenAlbumController,
-              decoration: InputDecoration(
-                labelText: 'Tên album',
-                errorText: _loiTenAlbum,
-              ),
-              onChanged: (_) {
-                if (_loiTenAlbum != null) setState(() => _loiTenAlbum = null);
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _ngayChupController,
-              readOnly: true,
-              onTap: _chonNgayChup,
-              decoration: const InputDecoration(
-                labelText: 'Ngày chụp',
-                suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<Map<String, dynamic>>(
-              initialValue: _khachHangDaChon,
-              decoration: const InputDecoration(labelText: 'Khách hàng'),
-              items: [
-                for (final kh in widget.khachHangOptions)
-                  DropdownMenuItem(
-                    value: kh,
-                    child: Text(kh['ho_ten']?.toString() ?? '--'),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _khachHangDaChon = v),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _duongDanDriveController,
-              decoration: const InputDecoration(labelText: 'Đường dẫn Drive'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _ghiChuController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Ghi chú'),
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('Cho phép truy cập công khai'),
-              value: _choPhepTruyCapCongKhai,
-              onChanged: (v) => setState(() => _choPhepTruyCapCongKhai = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('Cho phép tải ảnh'),
-              value: _choPhepTai,
-              onChanged: (v) => setState(() => _choPhepTai = v),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _matKhauController,
-              decoration: const InputDecoration(labelText: 'Mật khẩu truy cập'),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _dangLuu ? null : _luu,
-                child: _dangLuu
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Lưu'),
-              ),
-            ),
-          ],
+    final homNay = DateTime.now();
+    final homNayIso =
+        '${homNay.year.toString().padLeft(4, '0')}-${homNay.month.toString().padLeft(2, '0')}-${homNay.day.toString().padLeft(2, '0')}';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppTextInput(
+          controller: _tenAlbumController,
+          label: 'Tên album *',
+          errorText: _loiTenAlbum,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) {
+            if (_loiTenAlbum != null) setState(() => _loiTenAlbum = null);
+          },
         ),
-      ),
+        const SizedBox(height: 14),
+        DatePickerField(
+          label: 'Ngày chụp',
+          value: _ngayChupIso,
+          min: '2015-01-01',
+          max: homNayIso,
+          selectedColor: AppColors.primary,
+          onChanged: (v) => setState(() => _ngayChupIso = v),
+        ),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<Map<String, dynamic>>(
+          initialValue: _khachHangDaChon,
+          isExpanded: true,
+          decoration: _deco('Khách hàng'),
+          items: [
+            for (final kh in widget.khachHangOptions)
+              DropdownMenuItem(
+                value: kh,
+                child: Text(
+                  kh['ho_ten']?.toString() ?? '--',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (v) => setState(() => _khachHangDaChon = v),
+        ),
+        const SizedBox(height: 14),
+        AppTextInput(
+          controller: _duongDanDriveController,
+          label: 'Đường dẫn Drive',
+        ),
+        const SizedBox(height: 14),
+        // TODO: AppTextInput chưa có tham số maxLines nên tạm dùng TextField
+        // cho ô nhiều dòng. Khi thêm maxLines vào AppTextInput thì đổi lại.
+        TextField(
+          controller: _ghiChuController,
+          maxLines: 2,
+          decoration: _deco('Ghi chú'),
+        ),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Cho phép truy cập công khai'),
+          value: _choPhepTruyCapCongKhai,
+          onChanged: (v) => setState(() => _choPhepTruyCapCongKhai = v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Cho phép tải ảnh'),
+          value: _choPhepTai,
+          onChanged: (v) => setState(() => _choPhepTai = v),
+        ),
+        const SizedBox(height: 8),
+        AppTextInput(
+          controller: _matKhauController,
+          label: 'Mật khẩu truy cập',
+        ),
+      ],
     );
   }
 }
