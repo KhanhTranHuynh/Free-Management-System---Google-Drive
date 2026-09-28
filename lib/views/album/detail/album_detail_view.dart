@@ -347,3 +347,141 @@ class _AlbumDetailViewState extends State<AlbumDetailView> {
                 anBadgeTrangThai: _c.anBadgeTrangThai,
                 onSelectPhoto: _moChiTietAnh,
                 onToggleChonAnh:
+                    q.chonAnh ? (a) => _c.toggleChonAnh(a, q) : null,
+                dangDoiChonIds: _c.dangDoiChon,
+                onXoaYeuCauAnh:
+                    q.huyYeuCau ? (a) => _c.xoaYeuCauMotAnh(a, q) : null,
+                dangXoaYeuCauIds: _c.dangXoaYeuCauMotAnh,
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+            ],
+          ),
+        ),
+        // React: luôn hiện ở tab "Tất cả ảnh" / "Đã chỉnh sửa".
+        if (_c.hienBottomBar)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: BottomActionBar(
+              count: _c.soDaChon,
+              requestController: _requestCtrl,
+              onSelectAll: q.chonAnh ? () => _c.chonBoChonTatCa(true, q) : null,
+              onDeselectAll:
+                  q.chonAnh ? () => _c.chonBoChonTatCa(false, q) : null,
+              dangDoiChonTatCa: _c.dangDoiChonTatCa,
+              onAddRequest: q.taoYeuCau
+                  ? () async {
+                      final ok =
+                          await _c.guiYeuCauHangLoat(_requestCtrl.text, q);
+                      if (ok) _requestCtrl.clear();
+                    }
+                  : null,
+              dangThemYeuCau: _c.dangGuiYeuCau,
+              coTheThemYeuCau: _c.idTepAnhDaChon.isNotEmpty,
+              // React không truyền onClearRequests -> nút xoá ẩn.
+            ),
+          ),
+        if (_c.dangTaiAnhVe)
+          Positioned.fill(child: _TaiOverlay(tienDo: _c.tienDoTaiAnhVe)),
+      ],
+    );
+  }
+}
+
+class _TaiOverlay extends StatelessWidget {
+  const _TaiOverlay({required this.tienDo});
+  final ({int daXong, int tongSo})? tienDo;
+
+  @override
+  Widget build(BuildContext context) => AbsorbPointer(
+        child: Container(
+          color: Colors.black54,
+          alignment: Alignment.center,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(tienDo == null
+                      ? 'Đang lấy danh sách ảnh...'
+                      : 'Đang tải ${tienDo!.daXong}/${tienDo!.tongSo} từ Drive...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          border: Border.all(color: Colors.blue.shade200),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Vui lòng chốt yêu cầu chỉnh sửa để Editor có thể bắt đầu thực hiện.',
+                style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.tenAlbum, required this.dangTai});
+  final String? tenAlbum;
+  final bool dangTai;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        InkWell(
+          onTap: () => Navigator.of(context).maybePop(),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh, shape: BoxShape.circle),
+            child: const Icon(Icons.arrow_back_rounded, size: 20),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Chi tiết album',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(dangTai ? 'Đang tải...' : (tenAlbum ?? '—'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

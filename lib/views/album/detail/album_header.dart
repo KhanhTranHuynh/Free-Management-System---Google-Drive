@@ -58,7 +58,8 @@ class AlbumHeader extends StatelessWidget {
   }
 
   static String _dungLuong(dynamic v) {
-    final b = (v as num?)?.toDouble() ?? 0;
+    final b =
+        v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '') ?? 0;
     if (b <= 0) return '0 B';
     const u = ['B', 'KB', 'MB', 'GB', 'TB'];
     var i = 0;

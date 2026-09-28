@@ -123,8 +123,10 @@ class _DoiChieuBodyState extends State<_DoiChieuBody> {
   }
 
   Future<void> _chonFile() async {
-    final r = await FilePicker.platform
-        .pickFiles(allowMultiple: true, type: FileType.image);
+    final r = await FilePicker.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+    );
     if (r == null || !mounted) return;
     setState(() => _files = r.files.where((f) => f.path != null).toList());
   }
