@@ -5,6 +5,7 @@ import '../../apis/models/api_exception.dart';
 import '../../apis/services/ca_nhan_api.dart';
 import '../../components/app_modal.dart';
 import '../../components/app_text_input.dart';
+import '../../configs/app_colors.dart';
 
 /// Modal đổi mật khẩu — hành động TỰ THÂN, khớp DoiMatKhau.jsx bên React
 /// (POST /tai-khoan/doi-mat-khau, không có field id nào — BE lấy tài
@@ -19,27 +20,43 @@ Future<void> showDoiMatKhauModal(BuildContext context) {
     footerBuilder: (ctx) => ListenableBuilder(
       listenable: controller,
       builder: (ctx, _) => Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          TextButton(
-            onPressed:
-                controller.isPending ? null : () => Navigator.of(ctx).pop(),
-            child: const Text('Hủy'),
+          Expanded(
+            child: OutlinedButton(
+              onPressed:
+                  controller.isPending ? null : () => Navigator.of(ctx).pop(),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+              ),
+              child: const Text('Hủy',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed:
-                controller.isPending ? null : () => controller.submit(ctx),
-            child: controller.isPending
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Lưu'),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed:
+                  controller.isPending ? null : () => controller.submit(ctx),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+              ),
+              child: controller.isPending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Lưu',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ),
         ],
       ),
