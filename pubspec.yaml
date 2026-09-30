@@ -1,5 +1,5 @@
 name: PhotoFlow
-description: BMS Client - Flutter app (màn hình đăng nhập + lưu phiên đăng nhập dùng chung).
+description: PhotoFlow (màn hình đăng nhập + lưu phiên đăng nhập dùng chung).
 publish_to: "none"
 version: 1.0.0+1
 
@@ -46,9 +46,10 @@ flutter:
   assets:
     - .env
     - lib/assets/images/logo.svg
+    - lib/assets/images/icon.jpg
 
 flutter_launcher_icons:
-  image_path: "lib/assets/images/logo.svg"
+  image_path: "lib/assets/images/icon.jpg"
 
   android: true
   adaptive_icon_background: "#FFFFFF"
@@ -59,15 +60,15 @@ flutter_launcher_icons:
 
   web:
     generate: true
-    image_path: "lib/assets/images/logo.svg"
+    image_path: "lib/assets/images/icon.jpg"
     background_color: "#FFFFFF"
     theme_color: "#FFFFFF"
 
   windows:
     generate: true
-    image_path: "lib/assets/images/logo.svg"
+    image_path: "lib/assets/images/icon.jpg"
     icon_size: 256
 
   macos:
     generate: true
-    image_path: "lib/assets/images/logo.svg"
+    image_path: "lib/assets/images/icon.jpg"

@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeStore>(
         builder: (context, themeStore, _) {
           return MaterialApp(
-            title: 'BMS Client',
+            title: 'PhotoFlow',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
