@@ -512,6 +512,12 @@ class _AlbumListViewState extends State<AlbumListView> {
           icon: Icons.edit_outlined,
           onTap: () => _moSua(album),
         ),
+      if (_coQuyenPhanCong && !albumDaKetThuc)
+        AlbumCardAction(
+          nhan: 'Phân công',
+          icon: Icons.person_add_alt_outlined,
+          onTap: () => _moPhanCong(album),
+        ),
       if (_coQuyenSua && !albumDaKetThuc)
         AlbumCardAction(
           nhan: 'Báo hoàn thành',
@@ -533,12 +539,6 @@ class _AlbumListViewState extends State<AlbumListView> {
             'huy',
             'Bạn có chắc muốn hủy album "${album['ten_album'] ?? ''}" không?',
           ),
-        ),
-      if (_coQuyenPhanCong && !albumDaKetThuc)
-        AlbumCardAction(
-          nhan: 'Phân công',
-          icon: Icons.person_add_alt_outlined,
-          onTap: () => _moPhanCong(album),
         ),
       if (_coQuyenXoa)
         AlbumCardAction(
@@ -705,9 +705,9 @@ class _AlbumListViewState extends State<AlbumListView> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 400,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 0.78,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: 420,
         ),
         itemCount: _items.length,
         itemBuilder: (context, index) {
