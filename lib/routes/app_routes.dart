@@ -10,6 +10,7 @@ import '../pages/login_page.dart';
 import '../pages/nhan_vien_page.dart';
 import '../pages/not_found_page.dart';
 import '../pages/trang_ca_nhan_page.dart';
+import '../pages/lich_phan_cong_page.dart';
 import 'auth_guard.dart';
 
 /// Khai báo tất cả route tập trung. Muốn thêm màn hình mới, sửa ở đây.
@@ -25,6 +26,7 @@ class AppRoutes {
   static const String albumDetail = '/album/detail';
   static const String log = '/log';
   static const String TrangCaNhan = '/trang-ca-nhan';
+  static const String LichPhanCong = '/lich-phan-cong';
 
   /// Các route cần đăng nhập mới được vào.
   static const Set<String> protected = {
@@ -74,6 +76,9 @@ class AppRoutes {
         break;
       case TrangCaNhan:
         page = const TrangCaNhanPage();
+        break;
+      case LichPhanCong:
+        page = const LichPhanCongPage();
         break;
       default:
         page = const NotFoundPage();
