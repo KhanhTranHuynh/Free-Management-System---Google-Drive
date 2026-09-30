@@ -46,10 +46,10 @@ flutter:
   assets:
     - .env
     - lib/assets/images/logo.svg
-    - lib/assets/images/icon.jpg
+    - lib/assets/images/icon.png
 
 flutter_launcher_icons:
-  image_path: "lib/assets/images/icon.jpg"
+  image_path: "lib/assets/images/icon.png"
 
   android: true
   adaptive_icon_background: "#FFFFFF"
@@ -60,15 +60,15 @@ flutter_launcher_icons:
 
   web:
     generate: true
-    image_path: "lib/assets/images/icon.jpg"
+    image_path: "lib/assets/images/icon.png"
     background_color: "#FFFFFF"
     theme_color: "#FFFFFF"
 
   windows:
     generate: true
-    image_path: "lib/assets/images/icon.jpg"
+    image_path: "lib/assets/images/icon.png"
     icon_size: 256
 
   macos:
     generate: true
-    image_path: "lib/assets/images/icon.jpg"
+    image_path: "lib/assets/images/icon.png"
