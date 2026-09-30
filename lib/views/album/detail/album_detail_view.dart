@@ -216,25 +216,17 @@ class _AlbumDetailViewState extends State<AlbumDetailView> {
   }
 
   void _moChiTietAnh(Map<String, dynamic> anh) {
-    final quyen = _q; // chụp quyền tại thời điểm mở sheet
+    final quyen = _q; // chụp quyền tại thời điểm mở modal
     setState(() => _idAnhDangXem = anh['id_tep_anh'].toString());
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        builder: (context, sc) => AnhDetailSheet(
-          idAlbum: widget.idAlbum,
-          anhBanDau: anh,
-          tepAnhApi: _tepAnhApi,
-          ycsApi: _ycsApi,
-          extraApi: _extraApi,
-          scrollController: sc,
-          onThayDoi: _c.lamMoi,
-          quyen: quyen,
-        ),
-      ),
+    showAnhDetailModal(
+      context,
+      idAlbum: widget.idAlbum,
+      anh: anh,
+      tepAnhApi: _tepAnhApi,
+      ycsApi: _ycsApi,
+      extraApi: _extraApi,
+      onThayDoi: _c.lamMoi,
+      quyen: quyen,
     ).whenComplete(() {
       if (mounted) setState(() => _idAnhDangXem = null);
     });
